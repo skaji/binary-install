@@ -339,6 +339,9 @@ our $VERSION = '0.0.1';
 }
 
 sub catpath { File::Spec->catfile(@_) }
+my $TAR = qr/\.tar\.(?:gz|bz2|xz)$/;
+my $ZIP = qr/\.zip$/;
+my $ARCHIVE = qr/(?:$TAR|$ZIP)/;
 
 sub new {
     my ($class, $base_dir, $target_dir) = @_;
@@ -375,9 +378,9 @@ sub unpack {
     my ($self, $archive) = @_;
     my $tempdir = File::Temp::tempdir(CLEANUP => !DEBUG, DIR => $self->{work_dir});
     my $guard = pushd $tempdir;
-    if ($archive =~ /\.tar\.(gz|bz2|xz)$/) {
+    if ($archive =~ $TAR) {
         !system "tar", "xf", $archive or die;
-    } elsif ($archive =~ /\.zip$/) {
+    } elsif ($archive =~ $ZIP) {
         !system "unzip", "-q", $archive or die;
     } else {
         die;
@@ -420,26 +423,44 @@ sub probe_release {
     } else {
         $want_arch = qr/(?:arm64|AArch64)/i;
     }
+
+    my @candidate;
     for my $release (@release) {
         DEBUG and warn $release;
         (my $file = $release) =~ s{.*/releases/download/}{};
         if ($file =~ $want_os && $file =~ $want_arch) {
-            return $release;
+            push @candidate, $release;
         }
     }
-    for my $release (@release) {
-        (my $file = $release) =~ s{.*/releases/download/}{};
-        if ($file =~ $want_os && $file =~ /64/) {
-            return $release;
+    if (!@candidate) {
+        for my $release (@release) {
+            (my $file = $release) =~ s{.*/releases/download/}{};
+            if ($file =~ $want_os && $file =~ /64/) {
+                push @candidate, $release;
+            }
         }
     }
-    die "cannot probe release @release";
+    if (!@candidate) {
+        die "cannot probe release @release";
+    }
+    my $sort_by = sub {
+        my ($b, $a) = @_;
+        if ($b =~ $ARCHIVE) {
+            return 1;
+        } elsif ($a =~ $ARCHIVE) {
+            return -1;
+        } else {
+            return 0;
+        }
+    };
+    @candidate = sort { $sort_by->($b, $a) } @candidate;
+    $candidate[0];
 }
 
 sub probe_local_version {
     my ($self, $name) = @_;
     my @try;
-    for my $option (qw(--version version -v -V --help help)) {
+    for my $option (qw(--version version -v -V --help help -h)) {
         my $out;
         my $bin = catpath $self->{target_dir}, $name;
         run3 [$bin, $option], \undef, \$out, \$out, { return_if_system_error => 1 };
@@ -503,7 +524,7 @@ sub run {
     warn "[$name] Downloading $release\n";
     my $local_file = $self->download($release);
     my $binary = $local_file;
-    if ($local_file =~ /\.(?:tar\.(?:gz|bz2|xz)|zip)$/) {
+    if ($local_file =~ $ARCHIVE) {
         my $dir = $self->unpack($local_file);
         $binary = $self->probe_binary_in_dir($name, $dir);
     }
