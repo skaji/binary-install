@@ -1,0 +1,9 @@
+prereqs:
+  runtime:
+    requires:
+      File::Temp: { version: '0.2311' }
+      File::pushd:
+      Getopt::Long: { version: '2.52' }
+      HTTP::Tinyish:
+      IPC::Run3:
+      YAML::PP:

@@ -1,0 +1,247 @@
+#!/usr/bin/env perl
+use 5.8.1;
+use strict;
+use warnings;
+
+use Digest::MD5 ();
+use File::Basename qw(basename);
+use File::Copy ();
+use File::Find ();
+use File::Path qw(mkpath);
+use File::Spec;
+use File::Temp qw(tempfile);
+use File::pushd qw(pushd);
+use Getopt::Long ();
+use HTTP::Tinyish;
+use IPC::Run3 'run3';
+use POSIX ();
+use YAML::PP;
+
+use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
+
+our $VERSION = '0.0.1';
+
+{
+    package HTTP::Tinyish::CurlPatch;
+    use base 'HTTP::Tinyish::Curl';
+    sub build_options {
+        my ($self, $url, $opts) = @_;
+        my @option = $self->SUPER::build_options($url, $opts);
+        if (exists $self->{max_redirect} && !$self->{max_redirect}) {
+            my @new = ("--no-location");
+            while (my $option = shift @option) {
+                if ($option eq "--location") {
+                    next;
+                }
+                if ($option eq "--max-redirs") {
+                    shift @option;
+                    push @new, "--max-redirs", 0;
+                    next;
+                }
+                push @new, $option;
+            }
+            @option = @new;
+        }
+        @option;
+    }
+}
+
+sub catpath { File::Spec->catfile(@_) }
+
+sub new {
+    my ($class, $base_dir, $target_dir) = @_;
+    my $cache_dir = catpath $base_dir, "cache";
+    my $work_dir = catpath $base_dir, "work";
+    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir, $target_dir;
+
+    my $os = $^O =~ /linux/i ? "linux" : $^O =~ /darwin/i ? "darwin" : die;
+    my $_arch = (POSIX::uname)[4];
+    my $arch = $_arch eq "x86_64" ? "amd64" : $_arch eq "arm64" ? "arm64" : die;
+    HTTP::Tinyish::CurlPatch->configure;
+    HTTP::Tinyish::CurlPatch->supports("https") or die "missing curl";
+    bless {
+        os => $os,
+        arch => $arch,
+        work_dir => $work_dir,
+        cache_dir => $cache_dir,
+        target_dir => $target_dir,
+        http => HTTP::Tinyish::CurlPatch->new(verify_SSL => 1, agent => "Mozilla/5.0"),
+        http_no_redirect => HTTP::Tinyish::CurlPatch->new(verify_SSL => 1, agent => "Mozilla/5.0", max_redirect => 0),
+        yaml => YAML::PP->new,
+    }, $class;
+}
+
+sub download {
+    my ($self, $url) = @_;
+    my $md5 = Digest::MD5::md5_hex($url);
+    my $local_file = catpath $self->{cache_dir}, $md5 . "-" . basename($url);
+    my $res = $self->{http}->mirror($url => $local_file);
+    die "$res->{status}, $url\n" if !$res->{success};
+    $local_file;
+}
+
+sub unpack {
+    my ($self, $archive) = @_;
+    my $tempdir = File::Temp::tempdir(CLEANUP => !DEBUG, DIR => $self->{work_dir});
+    my $guard = pushd $tempdir;
+    if ($archive =~ /\.tar\.(gz|bz2|xz)$/) {
+        !system "tar", "xf", $archive or die;
+    } elsif ($archive =~ /\.zip$/) {
+        !system "unzip", "-q", $archive or die;
+    } else {
+        die;
+    }
+    $tempdir;
+}
+
+sub get_github_latest_tag {
+    my ($self, $url) = @_;
+    $url = "$url/releases/latest";
+    my $res = $self->{http_no_redirect}->get($url);
+    if ($res->{status} !~ /^3/) {
+        die "$res->{status}, $url\n";
+    }
+    my $loc = $res->{headers}{location};
+    (split /\//, $loc)[-1];
+}
+
+sub get_github_latest_releases {
+    my ($self, $url) = @_;
+    $url = "$url/releases/latest";
+    my $res = $self->{http}->get($url);
+    if (!$res->{success}) {
+        die "$res->{status}, $url\n";
+    }
+    my @href = $res->{content} =~ m{ href="(.+?)" }xgi;
+    map { m{^https} ? $_ : "https://github.com$_" } grep { m{/releases/download/} } @href;
+}
+
+sub probe_release {
+    my ($self, @release) = @_;
+    my ($want_os, $want_arch);
+    if ($self->{os} eq "linux") {
+        $want_os = qr/linux/i;
+    } else {
+        $want_os = qr/(?:darwin|macos|osx)/i;
+    }
+    if ($self->{arch} eq "amd64") {
+        $want_arch = qr/(?:amd64|x86_64)/i;
+    } else {
+        $want_arch = qr/(?:arm64|AArch64)/i;
+    }
+    for my $release (@release) {
+        DEBUG and warn $release;
+        (my $file = $release) =~ s{.*/releases/download/}{};
+        if ($file =~ $want_os && $file =~ $want_arch) {
+            return $release;
+        }
+    }
+    for my $release (@release) {
+        (my $file = $release) =~ s{.*/releases/download/}{};
+        if ($file =~ $want_os && $file =~ /64/) {
+            return $release;
+        }
+    }
+    die "cannot probe release @release";
+}
+
+sub probe_local_version {
+    my ($self, $name) = @_;
+    my @try;
+    for my $option (qw(--version version -v -V --help help)) {
+        my $out;
+        my $bin = catpath $self->{target_dir}, $name;
+        run3 [$bin, $option], \undef, \$out, \$out, { return_if_system_error => 1 };
+        if ($? == -1) {
+            DEBUG and warn "$bin $option: $out";
+            return;
+        }
+        if ($? == 0) {
+            if ($out =~ /(\d+\.\d+\.\d+)/) {
+                return $1;
+            } elsif ($out =~ /(\d+\.\d+)/) {
+                return $1;
+            }
+        }
+        DEBUG and warn "$bin $option: $out\n";
+    }
+    die "cannot probe version";
+}
+
+sub probe_binary_in_dir {
+    my ($self, $name, $dir) = @_;
+    my $guard = pushd $dir;
+    my @candidate;
+    File::Find::find({no_chdir => 1, wanted => sub {
+        my $file = $_;
+        DEBUG and warn $file;
+        if (-f $file && basename($file) eq $name) {
+            push @candidate, { file => $file, size => 1_000_000_000 };
+        }
+        if (-f $file && -x $file) {
+            my $size = (stat $file)[7];
+            push @candidate, { file => $file, size => $size };
+        }
+    }}, ".");
+    @candidate = sort { $b->{size} <=> $a->{size} } @candidate;
+    if (@candidate) {
+        return catpath $dir, $candidate[0]{file};
+    }
+    die "cannot find binary";
+}
+
+sub run {
+    my ($self, $argv) = @_;
+    my $name = $argv->{name};
+    my $gihtub_url = $argv->{github_url};
+
+    my $local_version = $self->probe_local_version($name);
+    if ($local_version) {
+        my $latest_tag = $self->get_github_latest_tag($gihtub_url);
+        if ($latest_tag =~ /$local_version/) {
+            warn "[$name] You have $local_version, latest_tag $latest_tag, OK\n";
+            return 1;
+        }
+        warn "[$name] You have $local_version, latest_tag $latest_tag, GO!\n";
+    } else {
+        warn "[$name] You don't have one, GO!\n";
+    }
+
+    my @release = $self->get_github_latest_releases($gihtub_url);
+    my $release = $self->probe_release(@release);
+    warn "[$name] Downloading $release\n";
+    my $local_file = $self->download($release);
+    my $binary = $local_file;
+    if ($local_file =~ /\.(?:tar\.(?:gz|bz2|xz)|zip)$/) {
+        my $dir = $self->unpack($local_file);
+        $binary = $self->probe_binary_in_dir($name, $dir);
+    }
+    my $target = catpath $self->{target_dir}, $name;
+    warn "[$name] Install $binary as $target\n";
+    File::Copy::copy $binary, $target;
+    chmod 0755, $target;
+    1;
+}
+
+sub run_file {
+    my ($self, $file) = @_;
+    my ($yaml) = YAML::PP->new->load_file($file);
+    for my $binary (@{ $yaml->{binaries} }) {
+        $self->run($binary);
+    }
+}
+
+my $p = Getopt::Long::Parser->new(
+    config => [qw(no_auto_abbrev no_ignore_case bundling)],
+);
+$p->getoptionsfromarray(\@ARGV,
+    "h|help" => sub { die "Usage: binary-install spec.yaml\n" },
+    "v|version" => sub { print "binary-install $VERSION\n"; exit },
+) or exit;
+
+my $file = shift or die "missing spec.yaml\n";
+my $home = (<~>)[0];
+my $work_dir = catpath $home, ".binary-install";
+my $target_dir = catpath $home, "bin";
+my $app = __PACKAGE__->new($work_dir, $target_dir);
+$app->run_file($file);

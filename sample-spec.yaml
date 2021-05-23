@@ -1,0 +1,7 @@
+binaries:
+  - name: jq
+    github_url: https://github.com/stedolan/jq
+  - name: ghq
+    github_url: https://github.com/x-motemen/ghq
+  - name: peco
+    github_url: https://github.com/peco/peco
