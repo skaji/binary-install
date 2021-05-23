@@ -359,7 +359,6 @@ sub new {
         target_dir => $target_dir,
         http => HTTP::Tinyish::CurlPatch->new(verify_SSL => 1, agent => "Mozilla/5.0"),
         http_no_redirect => HTTP::Tinyish::CurlPatch->new(verify_SSL => 1, agent => "Mozilla/5.0", max_redirect => 0),
-        yaml => YAML::PP->new,
     }, $class;
 }
 

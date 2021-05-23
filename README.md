@@ -2,7 +2,7 @@
 
 Install binaries from github releases
 
-# Usage:
+# Usage
 
 Prepare spec.yaml:
 
@@ -36,7 +36,7 @@ And execute `binary-install` so that binaries will be installed into `~/bin`:
 Download `binary-install`.
 
 ```
-❯ wget https://github.com/skaji/binary-install/binary-install
+❯ wget https://raw.githubusercontent.com/skaji/binary-install/main/binary-install
 ❯ chmod +x binary-install
 ❯ ./binary-install --version
 binary-install 0.0.1
