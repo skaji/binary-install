@@ -47,7 +47,7 @@ our $VERSION = '0.0.1';
 }
 
 sub catpath { File::Spec->catfile(@_) }
-my $TAR = qr/\.tar\.(?:gz|bz2|xz)$/;
+my $TAR = qr/\.(?:tgz|tar\.(?:gz|bz2|xz))$/;
 my $ZIP = qr/\.zip$/;
 my $ARCHIVE = qr/(?:$TAR|$ZIP)/;
 
@@ -153,7 +153,9 @@ sub probe_release {
     }
     my $sort_by = sub {
         my ($b, $a) = @_;
-        if ($b =~ $ARCHIVE) {
+        if ($b =~ $ARCHIVE && $a =~ $ARCHIVE) {
+            return 0;
+        } elsif ($b =~ $ARCHIVE) {
             return 1;
         } elsif ($a =~ $ARCHIVE) {
             return -1;
@@ -251,10 +253,9 @@ sub run_file {
     }
 }
 
-my $p = Getopt::Long::Parser->new(
+Getopt::Long::Parser->new(
     config => [qw(no_auto_abbrev no_ignore_case bundling)],
-);
-$p->getoptionsfromarray(\@ARGV,
+)->getoptionsfromarray(\@ARGV,
     "h|help" => sub { die "Usage: binary-install spec.yaml\n" },
     "v|version" => sub { print "binary-install $VERSION\n"; exit },
 ) or exit;
