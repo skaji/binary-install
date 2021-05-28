@@ -1,0 +1,24 @@
+name: linux
+
+on:
+  push:
+    branches:
+      - '*'
+    tags-ignore:
+      - '*'
+  pull_request:
+
+jobs:
+  perl:
+    runs-on: ubuntu-latest
+    container:
+      image: perl:5.8-buster
+    steps:
+      - uses: actions/checkout@v2
+      - run: |
+          set -eux
+          ./binary-install sample-spec.yaml
+          ls -al ~/bin/ghq
+          ls -al ~/bin/jq
+          ls -al ~/bin/peco
+
