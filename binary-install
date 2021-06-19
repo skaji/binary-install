@@ -415,33 +415,29 @@ sub get_github_latest_releases {
 
 sub probe_release {
     my ($self, @release) = @_;
-    my ($want_os, $want_arch);
+    my ($want_os, $want_archs);
     if ($self->{os} eq "linux") {
         $want_os = qr/linux/i;
     } else {
         $want_os = qr/(?:darwin|macos|osx)/i;
     }
     if ($self->{arch} eq "amd64") {
-        $want_arch = qr/(?:amd64|x86_64)/i;
+        $want_archs = [qr/(?:amd64|x86_64)/i, qr/64/];
     } else {
-        $want_arch = qr/(?:arm64|AArch64)/i;
+        $want_archs = [qr/(?:arm64|AArch64)/i, qr/(?:amd64|x86_64)/i, qr/64/];
     }
 
     my @candidate;
-    for my $release (@release) {
-        DEBUG and warn $release;
-        (my $file = $release) =~ s{.*/releases/download/}{};
-        if ($file =~ $want_os && $file =~ $want_arch) {
-            push @candidate, $release;
-        }
-    }
-    if (!@candidate) {
+    for my $i (0 .. $#{$want_archs}) {
+        my $want_arch = $want_archs->[$i];
         for my $release (@release) {
+            DEBUG and $i == 0 and warn $release;
             (my $file = $release) =~ s{.*/releases/download/}{};
-            if ($file =~ $want_os && $file =~ /64/) {
+            if ($file =~ $want_os && $file =~ $want_arch) {
                 push @candidate, $release;
             }
         }
+        last if @candidate;
     }
     if (!@candidate) {
         die "cannot probe release @release";
@@ -458,8 +454,7 @@ sub probe_release {
             return 0;
         }
     };
-    @candidate = sort { $sort_by->($b, $a) } @candidate;
-    $candidate[0];
+    (sort { $sort_by->($b, $a) } @candidate)[0];
 }
 
 sub probe_local_version {
