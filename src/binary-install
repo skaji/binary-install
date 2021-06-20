@@ -78,7 +78,7 @@ sub new {
 
 sub download {
     my ($self, $url) = @_;
-    my $md5 = Digest::MD5::md5_hex $url;
+    my $md5 = substr Digest::MD5::md5_hex($url), 0, 8;
     my $local_file = catpath $self->{cache_dir}, $md5 . "-" . basename($url);
     my $res = $self->{http}->mirror($url => $local_file);
     die "$res->{status}, $url\n" if !$res->{success};
