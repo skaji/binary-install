@@ -236,8 +236,12 @@ sub run {
     }
     my $target = catpath $self->{target_dir}, $name;
     warn "[$name] Install $binary as $target\n";
-    File::Copy::copy $binary, $target;
-    chmod 0755, $target;
+    {
+        my $tmp = "$target.tmp";
+        File::Copy::copy $binary, $tmp or die "copy $binary, $tmp: $!";
+        chmod 0755, $tmp or die;
+        rename $tmp, $target or die "rename $tmp, $target: $!";
+    }
     1;
 }
 
