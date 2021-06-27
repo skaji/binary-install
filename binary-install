@@ -379,7 +379,11 @@ sub download {
 
 sub unpack {
     my ($self, $archive) = @_;
-    my $tempdir = File::Temp::tempdir CLEANUP => !DEBUG, DIR => $self->{work_dir};
+    my $tempdir = File::Temp::tempdir
+        TEMPLATE => "unpack-XXXXX",
+        CLEANUP => 0,
+        DIR => $self->{work_dir},
+    ;
     my $guard = pushd $tempdir;
     if ($archive =~ $TAR) {
         !system "tar", "xf", $archive or die;
@@ -389,6 +393,23 @@ sub unpack {
         die;
     }
     $tempdir;
+}
+
+sub cleanup {
+    my $self = shift;
+    opendir my ($dh), $self->{work_dir} or die;
+    my $one_week_ago = time - 7*24*60*60;
+    my @obsolete =
+        grep { (stat $_)[9] < $one_week_ago }
+        map { catpath $self->{work_dir}, $_ }
+        grep { /^unpack-/ }
+        readdir $dh
+    ;
+    closedir $dh;
+    for my $dir (@obsolete) {
+        warn "Remove $dir\n";
+        File::Path::rmtree $dir;
+    }
 }
 
 sub get_github_latest_tag {
@@ -501,7 +522,7 @@ sub probe_binary_in_dir {
     die "cannot find binary";
 }
 
-sub run {
+sub install {
     my ($self, $argv) = @_;
     my $name = $argv->{name};
     my $gihtub_url = $argv->{github_url};
@@ -537,12 +558,13 @@ sub run {
     1;
 }
 
-sub run_file {
+sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
     for my $binary (@{ $yaml->{binaries} }) {
-        $self->run($binary);
+        $self->install($binary);
     }
+    $self->cleanup;
 }
 
 Getopt::Long::Parser->new(
@@ -554,7 +576,7 @@ Getopt::Long::Parser->new(
 
 my $file = shift or die "missing spec.yaml\n";
 my $home = (<~>)[0];
-my $work_dir = catpath $home, ".binary-install";
+my $base_dir = catpath $home, ".binary-install";
 my $target_dir = catpath $home, "bin";
-my $app = __PACKAGE__->new($work_dir, $target_dir);
-$app->run_file($file);
+my $app = __PACKAGE__->new($base_dir, $target_dir);
+$app->run($file);
