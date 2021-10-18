@@ -12,6 +12,8 @@ use File::Spec;
 use File::Temp ();
 use File::pushd qw(pushd);
 use Getopt::Long ();
+use GitHub::Release;
+use HTTP::Tinyish;
 use IPC::Run3 ();
 use POSIX ();
 use YAML::PP;
@@ -19,37 +21,6 @@ use YAML::PP;
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
 
 our $VERSION = '0.0.1';
-
-{
-    package HTTP;
-    use parent 'HTTP::Tinyish::Curl';
-    sub new {
-        my ($class, %argv) = @_;
-        $class->configure;
-        $class->supports("https") or die "missing curl";
-        $class->SUPER::new(verify_SSL => 1, agent => "Mozilla/5.0", %argv);
-    }
-    sub build_options {
-        my ($self, $url, $opts) = @_;
-        my @option = $self->SUPER::build_options($url, $opts);
-        if (exists $self->{max_redirect} && !$self->{max_redirect}) {
-            my @new = ("--no-location");
-            while (my $option = shift @option) {
-                if ($option eq "--location") {
-                    next;
-                }
-                if ($option eq "--max-redirs") {
-                    shift @option;
-                    push @new, "--max-redirs", 0;
-                    next;
-                }
-                push @new, $option;
-            }
-            @option = @new;
-        }
-        @option;
-    }
-}
 
 sub catpath { File::Spec->catfile(@_) }
 my $TAR = qr/\.(?:tgz|tar\.(?:gz|bz2|xz))$/;
@@ -71,8 +42,8 @@ sub new {
         work_dir => $work_dir,
         cache_dir => $cache_dir,
         target_dir => $target_dir,
-        http => HTTP->new,
-        http_no_redirect => HTTP->new(max_redirect => 0),
+        http => HTTP::Tinyish->new(verify_SSL => 1),
+        github_release => GitHub::Release->new,
     }, $class;
 }
 
@@ -236,7 +207,7 @@ sub install {
     my $gihtub_url = $argv->{github_url};
 
     if (my $local_version = $self->probe_local_version($name)) {
-        my $latest_tag = $self->get_github_latest_tag($gihtub_url);
+        my $latest_tag = $self->{github_release}->get_latest_tag($gihtub_url);
         if ($latest_tag =~ /$local_version/) {
             warn "[$name] You have $local_version, latest_tag $latest_tag, OK\n";
             return 1;
@@ -246,7 +217,7 @@ sub install {
         warn "[$name] You don't have one, GO!\n";
     }
 
-    my @release = $self->get_github_latest_releases($gihtub_url);
+    my @release = $self->{github_release}->get_latest_assets($gihtub_url);
     my $release = $self->probe_release(@release);
     warn "[$name] Downloading $release\n";
     my $local_file = $self->download($release);
