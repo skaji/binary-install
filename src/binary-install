@@ -182,10 +182,10 @@ sub probe_binary_in_dir {
 sub install {
     my ($self, $argv) = @_;
     my $name = $argv->{name};
-    my $gihtub_url = $argv->{github_url};
+    my $github_url = $argv->{github_url};
 
     if (my $local_version = $self->probe_local_version($name)) {
-        my $latest_tag = $self->{github_release}->get_latest_tag($gihtub_url);
+        my $latest_tag = $self->{github_release}->get_latest_tag($github_url);
         if ($latest_tag =~ /$local_version/) {
             warn "[$name] You have $local_version, latest_tag $latest_tag, OK\n";
             return 1;
@@ -195,7 +195,7 @@ sub install {
         warn "[$name] You don't have one, GO!\n";
     }
 
-    my @release = $self->{github_release}->get_latest_assets($gihtub_url);
+    my @release = $self->{github_release}->get_latest_assets($github_url);
     my $release = $self->probe_release(@release);
     warn "[$name] Downloading $release\n";
     my $local_file = $self->download($release);
