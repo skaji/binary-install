@@ -225,10 +225,16 @@ sub binary_install {
     1;
 }
 
+sub resolve_home {
+    my ($self, $path) = @_;
+    $path =~ s/^~/$self->{home}/;
+    $path;
+}
+
 sub git_install {
     my ($self, $spec) = @_;
     my $name = $spec->{name};
-    (my $target = $spec->{target}) =~ s/^~/$self->{home}/;
+    my $target = $self->resolve_home($spec->{target});
     my $url = $spec->{url};
     if (-e $target) {
         my $guard = pushd $target;
@@ -240,14 +246,30 @@ sub git_install {
     }
 }
 
+sub go_install {
+    my ($self, $spec) = @_;
+    my $name = $spec->{name};
+    my $target = $self->resolve_home($spec->{target});
+    if (-e $target && !$spec->{force}) {
+        $self->log($name, "You already have it, OK");
+        return 1;
+    }
+    my $package = $spec->{package};
+    $self->log($name, "go install $package");
+    !system "go", "install", $package or die;
+}
+
 sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
-    for my $binary (@{ $yaml->{binaries} }) {
+    for my $binary (@{ $yaml->{binaries} || [] }) {
         $self->binary_install($binary);
     }
     for my $git (@{ $yaml->{git} || [] }) {
         $self->git_install($git);
+    }
+    for my $go (@{ $yaml->{go} || [] }) {
+        $self->go_install($go);
     }
     $self->cleanup;
 }

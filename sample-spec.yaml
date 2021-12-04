@@ -9,3 +9,7 @@ git:
   - name: plenv
     target: ~/env/plenv
     url: https://github.com/tokuhirom/plenv
+go:
+  - name: goimports
+    target: ~/bin/goimports
+    package: golang.org/x/tools/cmd/goimports@latest
