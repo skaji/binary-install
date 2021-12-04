@@ -28,7 +28,10 @@ my $ZIP = qr/\.zip$/;
 my $ARCHIVE = qr/(?:$TAR|$ZIP)/;
 
 sub new {
-    my ($class, $base_dir, $target_dir) = @_;
+    my ($class, %argv) = @_;
+    my $home = $argv{home};
+    my $base_dir = $argv{base_dir};
+    my $target_dir = $argv{target_dir};
     my $cache_dir = catpath $base_dir, "cache";
     my $work_dir = catpath $base_dir, "work";
     File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir, $target_dir;
@@ -39,12 +42,19 @@ sub new {
     bless {
         os => $os,
         arch => $arch,
+        home => $home,
         work_dir => $work_dir,
         cache_dir => $cache_dir,
         target_dir => $target_dir,
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
     }, $class;
+}
+
+sub log {
+    my ($self, $name, $msg) = @_;
+    chomp $msg;
+    warn "[\e[1;32m$name\e[m] $msg\n";
 }
 
 sub download {
@@ -179,7 +189,7 @@ sub probe_binary_in_dir {
     die "cannot find binary";
 }
 
-sub install {
+sub binary_install {
     my ($self, $argv) = @_;
     my $name = $argv->{name};
     my $github_url = $argv->{github_url};
@@ -187,17 +197,17 @@ sub install {
     if (my $local_version = $self->probe_local_version($name)) {
         my $latest_tag = $self->{github_release}->get_latest_tag($github_url);
         if ($latest_tag =~ /$local_version/) {
-            warn "[$name] You have $local_version, latest_tag $latest_tag, OK\n";
+            $self->log($name, "You have $local_version, latest_tag $latest_tag, OK");
             return 1;
         }
-        warn "[$name] You have $local_version, latest_tag $latest_tag, GO!\n";
+        $self->log($name, "You have $local_version, latest_tag $latest_tag, GO!");
     } else {
-        warn "[$name] You don't have one, GO!\n";
+        $self->log($name, "You don't have one, GO!");
     }
 
     my @release = $self->{github_release}->get_latest_assets($github_url);
     my $release = $self->probe_release(@release);
-    warn "[$name] Downloading $release\n";
+    $self->log($name, "Downloading $release");
     my $local_file = $self->download($release);
     my $binary = $local_file;
     if ($local_file =~ $ARCHIVE) {
@@ -205,7 +215,7 @@ sub install {
         $binary = $self->probe_binary_in_dir($name, $dir);
     }
     my $target = catpath $self->{target_dir}, $name;
-    warn "[$name] Install $binary as $target\n";
+    $self->log($name, "Install $binary as $target");
     {
         my $tmp = "$target.tmp";
         File::Copy::copy $binary, $tmp or die "copy $binary, $tmp: $!";
@@ -215,11 +225,29 @@ sub install {
     1;
 }
 
+sub git_install {
+    my ($self, $spec) = @_;
+    my $name = $spec->{name};
+    (my $target = $spec->{target}) =~ s/^~/$self->{home}/;
+    my $url = $spec->{url};
+    if (-e $target) {
+        my $guard = pushd $target;
+        $self->log($name, "git pull");
+        !system "git", "pull" or die;
+    } else {
+        $self->log($name, "git clone");
+        !system "git", "clone", $url, $target or die;
+    }
+}
+
 sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
     for my $binary (@{ $yaml->{binaries} }) {
-        $self->install($binary);
+        $self->binary_install($binary);
+    }
+    for my $git (@{ $yaml->{git} || [] }) {
+        $self->git_install($git);
     }
     $self->cleanup;
 }
@@ -235,5 +263,5 @@ my $file = shift or die "missing spec.yaml\n";
 my $home = (<~>)[0];
 my $base_dir = catpath $home, ".binary-install";
 my $target_dir = catpath $home, "bin";
-my $app = __PACKAGE__->new($base_dir, $target_dir);
+my $app = __PACKAGE__->new(home => $home, base_dir => $base_dir, target_dir => $target_dir);
 $app->run($file);

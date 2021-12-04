@@ -5,3 +5,7 @@ binaries:
     github_url: https://github.com/x-motemen/ghq
   - name: peco
     github_url: https://github.com/peco/peco
+git:
+  - name: plenv
+    target: ~/env/plenv
+    url: https://github.com/tokuhirom/plenv
