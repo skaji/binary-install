@@ -10,6 +10,7 @@ use File::Find ();
 use File::Path ();
 use File::Spec;
 use File::Temp ();
+use File::Which ();
 use File::pushd qw(pushd);
 use Getopt::Long ();
 use GitHub::Release;
@@ -23,9 +24,13 @@ use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
 our $VERSION = '0.0.1';
 
 sub catpath { File::Spec->catfile(@_) }
+
 my $TAR = qr/\.(?:tgz|tar\.(?:gz|bz2|xz))$/;
 my $ZIP = qr/\.zip$/;
 my $ARCHIVE = qr/(?:$TAR|$ZIP)/;
+
+my $GIT = File::Which::which("git");
+my $GO = File::Which::which("go");
 
 sub new {
     my ($class, %argv) = @_;
@@ -234,21 +239,29 @@ sub resolve_home {
 sub git_install {
     my ($self, $spec) = @_;
     my $name = $spec->{name};
+    if (!$GIT) {
+        $self->log($name, "need git, skip");
+        return;
+    }
     my $target = $self->resolve_home($spec->{target});
     my $url = $spec->{url};
     if (-e $target) {
         my $guard = pushd $target;
         $self->log($name, "git pull");
-        !system "git", "pull" or die;
+        !system $GIT, "pull" or die;
     } else {
         $self->log($name, "git clone");
-        !system "git", "clone", $url, $target or die;
+        !system $GIT, "clone", $url, $target or die;
     }
 }
 
 sub go_install {
     my ($self, $spec) = @_;
     my $name = $spec->{name};
+    if (!$GO) {
+        $self->log($name, "need go, skip");
+        return;
+    }
     my $target = $self->resolve_home($spec->{target});
     if (-e $target && !$spec->{force}) {
         $self->log($name, "You already have it, OK");
@@ -256,7 +269,7 @@ sub go_install {
     }
     my $package = $spec->{package};
     $self->log($name, "go install $package");
-    !system "go", "install", $package or die;
+    !system $GO, "install", $package or die;
 }
 
 sub run {
