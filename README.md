@@ -7,7 +7,7 @@ Install binaries from github releases
 Prepare spec.yaml:
 
 ```yaml
-binaries:
+binary:
   - name: jq
     github_url: https://github.com/stedolan/jq
   - name: ghq

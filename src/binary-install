@@ -275,7 +275,7 @@ sub go_install {
 sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
-    for my $binary (@{ $yaml->{binaries} || [] }) {
+    for my $binary (@{ $yaml->{binary} || [] }) {
         $self->binary_install($binary);
     }
     for my $git (@{ $yaml->{git} || [] }) {
