@@ -263,8 +263,8 @@ sub go_install {
         return;
     }
     my $target = $self->resolve_home($spec->{target});
-    if (-e $target && !$spec->{force}) {
-        $self->log($name, "You already have it, OK");
+    if (-e $target && !$ENV{FORCE}) {
+        $self->log($name, "You already have it, OK (you can set FORCE=1)");
         return 1;
     }
     my $package = $spec->{package};
