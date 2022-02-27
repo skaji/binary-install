@@ -9,14 +9,17 @@ Prepare spec.yaml:
 ```yaml
 binary:
   - name: jq
+    target: ~/bin/jq
     github_url: https://github.com/stedolan/jq
   - name: ghq
+    target: ~/bin/ghq
     github_url: https://github.com/x-motemen/ghq
   - name: peco
+    target: ~/bin/peco
     github_url: https://github.com/peco/peco
 ```
 
-And execute `binary-install` so that binaries will be installed into `~/bin`:
+And execute `binary-install` so that binaries will be installed:
 
 ```
 ❯ binary-install spec.yaml

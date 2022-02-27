@@ -308,7 +308,7 @@ use strict;
 use warnings;
 
 use Digest::MD5 ();
-use File::Basename qw(basename);
+use File::Basename qw(basename dirname);
 use File::Copy ();
 use File::Find ();
 use File::Path ();
@@ -341,10 +341,9 @@ sub new {
     my ($class, %argv) = @_;
     my $home = $argv{home};
     my $base_dir = $argv{base_dir};
-    my $target_dir = $argv{target_dir};
     my $cache_dir = catpath $base_dir, "cache";
     my $work_dir = catpath $base_dir, "work";
-    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir, $target_dir;
+    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir;
 
     my $os = $^O =~ /linux/i ? "linux" : $^O =~ /darwin/i ? "darwin" : die;
     my $_arch = (POSIX::uname)[4];
@@ -355,7 +354,6 @@ sub new {
         home => $home,
         work_dir => $work_dir,
         cache_dir => $cache_dir,
-        target_dir => $target_dir,
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
     }, $class;
@@ -472,13 +470,12 @@ sub probe_release {
 }
 
 sub probe_local_version {
-    my ($self, $name) = @_;
+    my ($self, $target) = @_;
     for my $option (qw(--version version -v -V --help help -h)) {
         my $out;
-        my $bin = catpath $self->{target_dir}, $name;
-        IPC::Run3::run3 [$bin, $option], \undef, \$out, \$out, { return_if_system_error => 1 };
+        IPC::Run3::run3 [$target, $option], \undef, \$out, \$out, { return_if_system_error => 1 };
         if ($? == -1) {
-            DEBUG and warn "$bin $option: $out";
+            DEBUG and warn "$target $option: $out";
             return;
         }
         if ($? == 0) {
@@ -488,7 +485,7 @@ sub probe_local_version {
                 return $1;
             }
         }
-        DEBUG and warn "$bin $option: $out\n";
+        DEBUG and warn "$target $option: $out\n";
     }
     die "cannot probe version";
 }
@@ -516,11 +513,12 @@ sub probe_binary_in_dir {
 }
 
 sub binary_install {
-    my ($self, $argv) = @_;
-    my $name = $argv->{name};
-    my $github_url = $argv->{github_url};
+    my ($self, $spec) = @_;
+    my $name = $spec->{name};
+    my $github_url = $spec->{github_url};
+    my $target = $self->resolve_home($spec->{target});
 
-    if (my $local_version = $self->probe_local_version($name)) {
+    if (-e $target and my $local_version = $self->probe_local_version($target)) {
         my $latest_tag = $self->{github_release}->get_latest_tag($github_url);
         if ($latest_tag =~ /$local_version/) {
             $self->log($name, "You have $local_version, latest_tag $latest_tag, OK");
@@ -540,7 +538,12 @@ sub binary_install {
         my $dir = $self->unpack($local_file);
         $binary = $self->probe_binary_in_dir($name, $dir);
     }
-    my $target = catpath $self->{target_dir}, $name;
+    {
+        my $dir = dirname $target;
+        if (!-e $dir) {
+            File::Path::mkpath $dir;
+        }
+    }
     $self->log($name, "Install $binary as $target");
     {
         my $tmp = "$target.tmp";
@@ -621,6 +624,5 @@ Getopt::Long::Parser->new(
 my $file = shift or die "missing spec.yaml\n";
 my $home = (<~>)[0];
 my $base_dir = catpath $home, ".binary-install";
-my $target_dir = catpath $home, "bin";
-my $app = __PACKAGE__->new(home => $home, base_dir => $base_dir, target_dir => $target_dir);
+my $app = __PACKAGE__->new(home => $home, base_dir => $base_dir);
 $app->run($file);
