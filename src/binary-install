@@ -17,6 +17,7 @@ use GitHub::Release;
 use HTTP::Tinyish;
 use IPC::Run3 ();
 use POSIX ();
+use Parallel::Pipes::App;
 use YAML::PP;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
@@ -54,6 +55,22 @@ sub new {
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
     }, $class;
+}
+
+sub run_with_log {
+    my ($self, $name, @cmd) = @_;
+    $self->log($name, "@cmd");
+    my $pid = open my $fh, "-|";
+    if ($pid == 0) {
+        open STDERR, ">&", \*STDOUT;
+        exec { $cmd[0] } @cmd;
+        exit 1;
+    }
+    while (<$fh>) {
+        $self->log($name, $_);
+    }
+    close $fh;
+    $? == 0;
 }
 
 sub log {
@@ -247,11 +264,9 @@ sub git_install {
     my $url = $spec->{url};
     if (-e $target) {
         my $guard = pushd $target;
-        $self->log($name, "git pull");
-        !system $GIT, "pull" or die;
+        $self->run_with_log($name, $GIT, "pull") or die;
     } else {
-        $self->log($name, "git clone");
-        !system $GIT, "clone", $url, $target or die;
+        $self->run_with_log($name, $GIT, "clone", $url, $target) or die;
     }
 }
 
@@ -268,22 +283,27 @@ sub go_install {
         return 1;
     }
     my $package = $spec->{package};
-    $self->log($name, "go install $package");
-    !system $GO, "install", $package or die;
+    $self->run_with_log($name, $GO, "install", $package) or die;
 }
 
 sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
-    for my $binary (@{ $yaml->{binary} || [] }) {
-        $self->binary_install($binary);
-    }
-    for my $git (@{ $yaml->{git} || [] }) {
-        $self->git_install($git);
-    }
-    for my $go (@{ $yaml->{go} || [] }) {
-        $self->go_install($go);
-    }
+
+    Parallel::Pipes::App->once(
+        num => 2,
+        tasks => [
+            ( map +{ type => "binary", spec => $_ }, @{ $yaml->{binary} || [] } ),
+            ( map +{ type => "git", spec => $_ }, @{ $yaml->{git} || [] } ),
+            ( map +{ type => "go", spec => $_ }, @{ $yaml->{go} || [] } ),
+        ],
+        work => sub {
+            my $task = shift;
+            my $method = "$task->{type}_install";
+            eval { $self->$method($task->{spec}) };
+            warn $@ if $@;
+        },
+    );
     $self->cleanup;
 }
 

@@ -136,6 +136,14 @@ $fatpacked{"Module/Load.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'MOD
   package Module::Load;use strict;use warnings;use File::Spec ();our$VERSION='0.36';sub import {my$who=_who();my$h;shift;{no strict 'refs';@_ or (*{"${who}::load"}=\&load,*{"${who}::autoload"}=\&autoload,return);map {$h->{$_}=()if defined $_}@_;(exists$h->{none}or exists$h->{''})and shift,last;((exists$h->{autoload}and shift,1)or (exists$h->{all}and shift))and *{"${who}::autoload"}=\&autoload;((exists$h->{load}and shift,1)or exists$h->{all})and *{"${who}::load"}=\&load;((exists$h->{load_remote}and shift,1)or exists$h->{all})and *{"${who}::load_remote"}=\&load_remote;((exists$h->{autoload_remote}and shift,1)or exists$h->{all})and *{"${who}::autoload_remote"}=\&autoload_remote}}sub load(*;@){goto&_load}sub autoload(*;@){unshift @_,'autoimport';goto&_load}sub load_remote($$;@){my ($dst,$src,@exp)=@_;eval "package $dst;Module::Load::load('$src', qw/@exp/);";$@ && die "$@"}sub autoload_remote($$;@){my ($dst,$src,@exp)=@_;eval "package $dst;Module::Load::autoload('$src', qw/@exp/);";$@ && die "$@"}sub _load{my$autoimport=$_[0]eq 'autoimport' and shift;my$mod=shift or return;my$who=_who();if(_is_file($mod)){require$mod}else {LOAD: {my$err;for my$flag (qw[1 0]){my$file=_to_file($mod,$flag);eval {require$file};$@ ? $err .= $@ : last LOAD}die$err if$err}}{no strict 'refs';my$import;((@_ or $autoimport)and ($import=$mod->can('import'))and (unshift(@_,$mod),goto &$import))}}sub _to_file{local $_=shift;my$pm=shift || '';my@parts=split /::|'/,$_,-1;shift@parts if@parts &&!$parts[0];my$file=$^O eq 'MSWin32' ? join "/",@parts : File::Spec->catfile(@parts);$file .= '.pm' if$pm;$file=VMS::Filespec::unixify($file)if $^O eq 'VMS';return$file}sub _who {(caller(1))[0]}sub _is_file {local $_=shift;return /^\./ ? 1 : /[^\w:']/ ? 1 : undef}1;
 MODULE_LOAD
 
+$fatpacked{"Parallel/Pipes.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'PARALLEL_PIPES';
+  package Parallel::Pipes;use 5.008001;use strict;use warnings;use IO::Handle;use IO::Select;use constant WIN32=>$^O eq 'MSWin32';our$VERSION='0.100';{package Parallel::Pipe::Impl;use Storable ();sub new {my ($class,%option)=@_;my$read_fh=delete$option{read_fh}or die;my$write_fh=delete$option{write_fh}or die;$write_fh->autoflush(1);bless {%option,read_fh=>$read_fh,write_fh=>$write_fh,buf=>'' },$class}sub read :method {my$self=shift;my$_size=$self->_read(4)or return;my$size=unpack 'I',$_size;my$freezed=$self->_read($size);Storable::thaw($freezed)}sub write :method {my ($self,$data)=@_;my$freezed=Storable::freeze({data=>$data});my$size=pack 'I',length($freezed);$self->_write("$size$freezed")}sub _read {my ($self,$size)=@_;my$fh=$self->{read_fh};my$offset=length$self->{buf};while ($offset < $size){my$len=sysread$fh,$self->{buf},65536,$offset;if (!defined$len){die $!}elsif ($len==0){last}else {$offset += $len}}return substr$self->{buf},0,$size,''}sub _write {my ($self,$data)=@_;my$fh=$self->{write_fh};my$size=length$data;my$offset=0;while ($size){my$len=syswrite$fh,$data,$size,$offset;if (!defined$len){die $!}elsif ($len==0){last}else {$size -= $len;$offset += $len}}$size}}{package Parallel::Pipe::Here;our@ISA=qw(Parallel::Pipe::Impl);use Carp ();sub new {my ($class,%option)=@_;$class->SUPER::new(%option,_written=>0)}sub is_written {my$self=shift;$self->{_written}==1}sub read :method {my$self=shift;if (!$self->is_written){Carp::croak("This pipe has not been written; you cannot read it")}$self->{_written}--;return unless my$read=$self->SUPER::read;$read->{data}}sub write :method {my ($self,$task)=@_;if ($self->is_written){Carp::croak("This pipe has already been written; you must read it first")}$self->{_written}++;$self->SUPER::write($task)}}{package Parallel::Pipe::There;our@ISA=qw(Parallel::Pipe::Impl)}{package Parallel::Pipe::Impl::NoFork;use Carp ();sub new {my ($class,%option)=@_;bless {%option},$class}sub is_written {my$self=shift;exists$self->{_result}}sub read :method {my$self=shift;if (!$self->is_written){Carp::croak("This pipe has not been written; you cannot read it")}delete$self->{_result}}sub write :method {my ($self,$task)=@_;if ($self->is_written){Carp::croak("This pipe has already been written; you must read it first")}my$result=$self->{code}->($task);$self->{_result}=$result}}sub new {my ($class,$number,$code)=@_;if (WIN32 and $number!=1){die "The number of pipes must be 1 under WIN32 environment.\n"}my$self=bless {code=>$code,number=>$number,no_fork=>$number==1,pipes=>{},},$class;if ($self->no_fork){$self->{pipes}{-1}=Parallel::Pipe::Impl::NoFork->new(code=>$self->{code})}else {$self->_fork for 1 .. $number}$self}sub no_fork {shift->{no_fork}}sub _fork {my$self=shift;my$code=$self->{code};pipe my$read_fh1,my$write_fh1;pipe my$read_fh2,my$write_fh2;my$pid=fork;die "fork failed" unless defined$pid;if ($pid==0){srand;close $_ for$read_fh1,$write_fh2,map {($_->{read_fh},$_->{write_fh})}$self->pipes;my$there=Parallel::Pipe::There->new(read_fh=>$read_fh2,write_fh=>$write_fh1);while (my$read=$there->read){$there->write($code->($read->{data}))}exit}close $_ for$write_fh1,$read_fh2;$self->{pipes}{$pid}=Parallel::Pipe::Here->new(pid=>$pid,read_fh=>$read_fh1,write_fh=>$write_fh2,)}sub pipes {my$self=shift;map {$self->{pipes}{$_}}sort {$a <=> $b}keys %{$self->{pipes}}}sub is_ready {my$self=shift;return$self->pipes if$self->no_fork;my@pipes=@_ ? @_ : $self->pipes;if (my@ready=grep {$_->{_written}==0}@pipes){return@ready}my$select=IO::Select->new(map {$_->{read_fh}}@pipes);my@ready=$select->can_read;my@return;for my$pipe (@pipes){if (grep {$pipe->{read_fh}==$_}@ready){push@return,$pipe}}return@return}sub is_written {my$self=shift;grep {$_->is_written}$self->pipes}sub close :method {my$self=shift;return if$self->no_fork;close $_ for map {($_->{write_fh},$_->{read_fh})}$self->pipes;while (%{$self->{pipes}}){my$pid=wait;if (delete$self->{pipes}{$pid}){}else {warn "wait() unexpectedly returns $pid\n"}}}1;
+PARALLEL_PIPES
+
+$fatpacked{"Parallel/Pipes/App.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'PARALLEL_PIPES_APP';
+  package Parallel::Pipes::App;use strict;use warnings;use Parallel::Pipes;our$VERSION='0.100';sub _min {$_[0]< $_[1]? $_[0]: $_[1]}sub run {my ($class,%argv)=@_;my$work=$argv{work}or die "need 'work' argument\n";my$num=$argv{num}or die "need 'num' argument\n";my$tasks=$argv{tasks}or die "need 'tasks' argument\n";my$before_work=$argv{before_work};my$after_work=$argv{after_work};my$pipes=Parallel::Pipes->new($num,$work);while (1){my@ready=$pipes->is_ready;if (my@written=grep {$_->is_written}@ready){for my$written (@written){my$result=$written->read;$after_work->($result)if$after_work}}if (@$tasks){my$min=_min $#{$tasks},$#ready;for my$i (0 .. $min){my$task=shift @$tasks;$before_work->($task)if$before_work;$ready[$i]->write($task)}}else {if (@ready==$num){last}else {if (my@written=$pipes->is_written){my@ready=$pipes->is_ready(@written);for my$written (@ready){my$result=$written->read;$after_work->($result)if$after_work}}else {die "unexpected"}}}}$pipes->close;1}sub once {my ($class,%argv)=@_;my@result;$class->run(%argv,after_work=>sub {push@result,$_[0]});@result}1;
+PARALLEL_PIPES_APP
+
 $fatpacked{"YAML/PP.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'YAML_PP';
   use strict;use warnings;package YAML::PP;our$VERSION='0.031';use YAML::PP::Schema;use YAML::PP::Schema::JSON;use YAML::PP::Loader;use YAML::PP::Dumper;use Scalar::Util qw/blessed/;use Carp qw/croak/;use base 'Exporter';our@EXPORT_OK=qw/Load LoadFile Dump DumpFile/;my%YAML_VERSIONS=('1.1'=>1,'1.2'=>1);sub new {my ($class,%args)=@_;my$bool=delete$args{boolean};$bool='perl' unless defined$bool;my$schemas=delete$args{schema}|| ['+'];my$cyclic_refs=delete$args{cyclic_refs}|| 'allow';my$indent=delete$args{indent};my$width=delete$args{width};my$writer=delete$args{writer};my$header=delete$args{header};my$footer=delete$args{footer};my$duplicate_keys=delete$args{duplicate_keys};my$yaml_version=$class->_arg_yaml_version(delete$args{yaml_version});my$default_yaml_version=$yaml_version->[0];my$version_directive=delete$args{version_directive};my$preserve=delete$args{preserve};my$parser=delete$args{parser};my$emitter=delete$args{emitter}|| {indent=>$indent,width=>$width,writer=>$writer,};if (keys%args){die "Unexpected arguments: " .join ', ',sort keys%args}my%schemas;for my$v (@$yaml_version){my$schema;if (blessed($schemas)and $schemas->isa('YAML::PP::Schema')){$schema=$schemas}else {$schema=YAML::PP::Schema->new(boolean=>$bool,yaml_version=>$v,);$schema->load_subschemas(@$schemas)}$schemas{$v }=$schema}my$default_schema=$schemas{$default_yaml_version };my$loader=YAML::PP::Loader->new(schemas=>\%schemas,cyclic_refs=>$cyclic_refs,parser=>$parser,default_yaml_version=>$default_yaml_version,preserve=>$preserve,duplicate_keys=>$duplicate_keys,);my$dumper=YAML::PP::Dumper->new(schema=>$default_schema,emitter=>$emitter,header=>$header,footer=>$footer,version_directive=>$version_directive,preserve=>$preserve,);my$self=bless {schema=>\%schemas,loader=>$loader,dumper=>$dumper,},$class;return$self}sub clone {my ($self)=@_;my$clone={schema=>$self->schema,loader=>$self->loader->clone,dumper=>$self->dumper->clone,};return bless$clone,ref$self}sub _arg_yaml_version {my ($class,$version)=@_;my@versions=('1.2');if (defined$version){@versions=();if (not ref$version){$version=[$version]}for my$v (@$version){unless ($YAML_VERSIONS{$v }){croak "YAML Version '$v' not supported"}push@versions,$v}}return \@versions}sub loader {if (@_ > 1){$_[0]->{loader}=$_[1]}return $_[0]->{loader}}sub dumper {if (@_ > 1){$_[0]->{dumper}=$_[1]}return $_[0]->{dumper}}sub schema {if (@_ > 1){$_[0]->{schema}->{'1.2'}=$_[1]}return $_[0]->{schema}->{'1.2'}}sub default_schema {my ($self,%args)=@_;my$schema=YAML::PP::Schema->new(boolean=>$args{boolean},);$schema->load_subschemas(qw/Core/);return$schema}sub load_string {my ($self,$yaml)=@_;return$self->loader->load_string($yaml)}sub load_file {my ($self,$file)=@_;return$self->loader->load_file($file)}sub dump {my ($self,@data)=@_;return$self->dumper->dump(@data)}sub dump_string {my ($self,@data)=@_;return$self->dumper->dump_string(@data)}sub dump_file {my ($self,$file,@data)=@_;return$self->dumper->dump_file($file,@data)}sub Load {my ($yaml)=@_;YAML::PP->new->load_string($yaml)}sub LoadFile {my ($file)=@_;YAML::PP->new->load_file($file)}sub Dump {my (@data)=@_;YAML::PP->new->dump_string(@data)}sub DumpFile {my ($file,@data)=@_;YAML::PP->new->dump_file($file,@data)}sub preserved_scalar {my ($self,$value,%args)=@_;my$scalar=YAML::PP::Preserve::Scalar->new(value=>$value,%args,);return$scalar}sub preserved_mapping {my ($self,$hash,%args)=@_;my$data={};tie %$data,'YAML::PP::Preserve::Hash';%$data=%$hash;my$t=tied %$data;$t->{style}=$args{style};$t->{alias}=$args{alias};return$data}sub preserved_sequence {my ($self,$array,%args)=@_;my$data=[];tie @$data,'YAML::PP::Preserve::Array';push @$data,@$array;my$t=tied @$data;$t->{style}=$args{style};$t->{alias}=$args{alias};return$data}package YAML::PP::Preserve::Hash;use Tie::Hash;use base qw/Tie::StdHash/;use Scalar::Util qw/reftype blessed/;sub TIEHASH {my ($class,%args)=@_;my$self=bless {keys=>[keys%args],data=>{%args },},$class}sub STORE {my ($self,$key,$val)=@_;my$keys=$self->{keys};unless (exists$self->{data}->{$key }){push @$keys,$key}if (ref$val and not blessed($val)){if (reftype($val)eq 'HASH' and not tied %$val){tie %$val,'YAML::PP::Preserve::Hash',%$val}elsif (reftype($val)eq 'ARRAY' and not tied @$val){tie @$val,'YAML::PP::Preserve::Array',@$val}}$self->{data}->{$key }=$val}sub FIRSTKEY {my ($self)=@_;return$self->{keys}->[0]}sub NEXTKEY {my ($self,$last)=@_;my$keys=$self->{keys};for my$i (0 .. $#$keys){if ("$keys->[ $i ]" eq "$last"){return$keys->[$i + 1 ]}}return}sub FETCH {my ($self,$key)=@_;my$val=$self->{data}->{$key }}sub DELETE {my ($self,$key)=@_;@{$self->{keys}}=grep {"$_" ne "$key"}@{$self->{keys}};delete$self->{data}->{$key }}sub EXISTS {my ($self,$key)=@_;return exists$self->{data}->{$key }}sub CLEAR {my ($self)=@_;$self->{keys}=[];$self->{data}={}}sub SCALAR {my ($self)=@_;return scalar %{$self->{data}}}package YAML::PP::Preserve::Array;use Tie::Array;use base qw/Tie::StdArray/;use Scalar::Util qw/reftype blessed/;sub TIEARRAY {my ($class,@items)=@_;my$self=bless {data=>[@items],},$class;return$self}sub FETCH {my ($self,$i)=@_;return$self->{data}->[$i ]}sub FETCHSIZE {my ($self)=@_;return $#{$self->{data}}+ 1}sub _preserve {my ($val)=@_;if (ref$val and not blessed($val)){if (reftype($val)eq 'HASH' and not tied %$val){tie %$val,'YAML::PP::Preserve::Hash',%$val}elsif (reftype($val)eq 'ARRAY' and not tied @$val){tie @$val,'YAML::PP::Preserve::Array',@$val}}return$val}sub STORE {my ($self,$i,$val)=@_;_preserve($val);$self->{data}->[$i ]=$val}sub PUSH {my ($self,@args)=@_;push @{$self->{data}},map {_preserve $_}@args}sub STORESIZE {my ($self,$i)=@_;$#{$self->{data}}=$i - 1}sub DELETE {my ($self,$i)=@_;delete$self->{data}->[$i ]}sub EXISTS {my ($self,$i)=@_;return exists$self->{data}->[$i ]}sub CLEAR {my ($self)=@_;$self->{data}=[]}sub SHIFT {my ($self)=@_;shift @{$self->{data}}}sub UNSHIFT {my ($self,@args)=@_;unshift @{$self->{data}},map {_preserve $_}@args}sub SPLICE {my ($self,$offset,$length,@args)=@_;splice @{$self->{data}},$offset,$length,map {_preserve $_}@args}sub EXTEND {}package YAML::PP::Preserve::Scalar;use overload fallback=>1,'+'=>\&value,'""'=>\&value,'bool'=>\&value,;sub new {my ($class,%args)=@_;my$self={%args,};bless$self,$class}sub value {$_[0]->{value}}sub tag {$_[0]->{tag}}sub style {$_[0]->{style}|| 0}sub alias {$_[0]->{alias}}1;
 YAML_PP
@@ -313,6 +321,7 @@ use GitHub::Release;
 use HTTP::Tinyish;
 use IPC::Run3 ();
 use POSIX ();
+use Parallel::Pipes::App;
 use YAML::PP;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
@@ -350,6 +359,22 @@ sub new {
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
     }, $class;
+}
+
+sub run_with_log {
+    my ($self, $name, @cmd) = @_;
+    $self->log($name, "@cmd");
+    my $pid = open my $fh, "-|";
+    if ($pid == 0) {
+        open STDERR, ">&", \*STDOUT;
+        exec { $cmd[0] } @cmd;
+        exit 1;
+    }
+    while (<$fh>) {
+        $self->log($name, $_);
+    }
+    close $fh;
+    $? == 0;
 }
 
 sub log {
@@ -543,11 +568,9 @@ sub git_install {
     my $url = $spec->{url};
     if (-e $target) {
         my $guard = pushd $target;
-        $self->log($name, "git pull");
-        !system $GIT, "pull" or die;
+        $self->run_with_log($name, $GIT, "pull") or die;
     } else {
-        $self->log($name, "git clone");
-        !system $GIT, "clone", $url, $target or die;
+        $self->run_with_log($name, $GIT, "clone", $url, $target) or die;
     }
 }
 
@@ -564,22 +587,27 @@ sub go_install {
         return 1;
     }
     my $package = $spec->{package};
-    $self->log($name, "go install $package");
-    !system $GO, "install", $package or die;
+    $self->run_with_log($name, $GO, "install", $package) or die;
 }
 
 sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
-    for my $binary (@{ $yaml->{binary} || [] }) {
-        $self->binary_install($binary);
-    }
-    for my $git (@{ $yaml->{git} || [] }) {
-        $self->git_install($git);
-    }
-    for my $go (@{ $yaml->{go} || [] }) {
-        $self->go_install($go);
-    }
+
+    Parallel::Pipes::App->once(
+        num => 2,
+        tasks => [
+            ( map +{ type => "binary", spec => $_ }, @{ $yaml->{binary} || [] } ),
+            ( map +{ type => "git", spec => $_ }, @{ $yaml->{git} || [] } ),
+            ( map +{ type => "go", spec => $_ }, @{ $yaml->{go} || [] } ),
+        ],
+        work => sub {
+            my $task = shift;
+            my $method = "$task->{type}_install";
+            eval { $self->$method($task->{spec}) };
+            warn $@ if $@;
+        },
+    );
     $self->cleanup;
 }
 
