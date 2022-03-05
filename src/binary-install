@@ -293,7 +293,7 @@ sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
 
-    Parallel::Pipes::App->once(
+    Parallel::Pipes::App->run(
         num => 2,
         tasks => [
             ( map +{ type => "binary", spec => $_ }, @{ $yaml->{binary} || [] } ),
