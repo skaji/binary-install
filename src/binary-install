@@ -183,7 +183,7 @@ sub probe_local_version {
         }
         DEBUG and warn "$target $option: $out\n";
     }
-    die "cannot probe version";
+    die "cannot probe version: $target";
 }
 
 sub probe_binary_in_dir {
@@ -293,7 +293,7 @@ sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
 
-    Parallel::Pipes::App->run(
+    Parallel::Pipes::App->map(
         num => 2,
         tasks => [
             ( map +{ type => "binary", spec => $_ }, @{ $yaml->{binary} || [] } ),
@@ -303,6 +303,9 @@ sub run {
         work => sub {
             my $task = shift;
             my $method = "$task->{type}_install";
+            if (exists $task->{spec}{enabled} && !$task->{spec}{enabled}) {
+                return;
+            }
             eval { $self->$method($task->{spec}) };
             warn $@ if $@;
         },
