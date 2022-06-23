@@ -296,11 +296,18 @@ sub jar_install {
     my ($self, $spec) = @_;
     my $name = $spec->{name};
     my $target = $self->resolve_home($spec->{target});
-    if (-e $target && !$ENV{FORCE}) {
-        $self->log($name, "You already have it, OK (you can set FORCE=1)");
-        return 1;
-    }
     my $github_url = $spec->{github_url};
+    if (-e $target and my $local_version = $self->probe_local_version($target)) {
+        my $latest_tag = $self->{github_release}->get_latest_tag($github_url);
+        if ($latest_tag =~ /$local_version/) {
+            $self->log($name, "You have $local_version, latest_tag $latest_tag, OK");
+            return 1;
+        }
+        $self->log($name, "You have $local_version, latest_tag $latest_tag, GO!");
+    } else {
+        $self->log($name, "You don't have one, GO!");
+    }
+
     my @release = $self->{github_release}->get_latest_assets($github_url);
     my ($release) = grep { /all-deps\.jar$/ } @release;
     if (!$release) {
