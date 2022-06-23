@@ -322,24 +322,21 @@ sub run {
     my ($self, $file) = @_;
     my ($yaml) = YAML::PP->new->load_file($file);
 
-    Parallel::Pipes::App->map(
-        num => 2,
-        tasks => [
-            ( map +{ type => "binary", spec => $_ }, @{ $yaml->{binary} || [] } ),
-            ( map +{ type => "git", spec => $_ }, @{ $yaml->{git} || [] } ),
-            ( map +{ type => "go", spec => $_ }, @{ $yaml->{go} || [] } ),
-            ( map +{ type => "jar", spec => $_ }, @{ $yaml->{jar} || [] } ),
-        ],
-        work => sub {
-            my $task = shift;
-            my $method = "$task->{type}_install";
-            if (exists $task->{spec}{enabled} && !$task->{spec}{enabled}) {
-                return;
-            }
-            eval { $self->$method($task->{spec}) };
-            warn $@ if $@;
-        },
-    );
+    my @task;
+    for my $type (qw(binary git go jar)) {
+        my $specs = $yaml->{$type} or next;
+        push @task, ( map +{ type => $type, spec => $_ }, @$specs );
+    }
+    my $work = sub {
+        my $task = shift;
+        my $method = "$task->{type}_install";
+        if (exists $task->{spec}{enabled} && !$task->{spec}{enabled}) {
+            return;
+        }
+        eval { $self->$method($task->{spec}) };
+        warn $@ if $@;
+    };
+    Parallel::Pipes::App->map(num => 2, tasks => \@task, work => $work);
     $self->cleanup;
 }
 
