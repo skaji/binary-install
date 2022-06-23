@@ -16,3 +16,8 @@ go:
   - name: goimports
     target: ~/bin/goimports
     package: golang.org/x/tools/cmd/goimports@latest
+jar:
+  - name: google-java-format
+    target: ~/bin/google-java-format
+    github_url: https://github.com/google/google-java-format
+

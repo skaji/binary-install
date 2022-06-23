@@ -39,7 +39,8 @@ sub new {
     my $base_dir = $argv{base_dir};
     my $cache_dir = catpath $base_dir, "cache";
     my $work_dir = catpath $base_dir, "work";
-    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir;
+    my $jar_dir = catpath $base_dir, "jar";
+    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir, $jar_dir;
 
     my $os = $^O =~ /linux/i ? "linux" : $^O =~ /darwin/i ? "darwin" : die;
     my $_arch = (POSIX::uname)[4];
@@ -50,6 +51,7 @@ sub new {
         home => $home,
         work_dir => $work_dir,
         cache_dir => $cache_dir,
+        jar_dir => $jar_dir,
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
     }, $class;
@@ -286,7 +288,34 @@ sub go_install {
         return 1;
     }
     my $package = $spec->{package};
+    my $guard = pushd $self->{cache_dir};
     $self->run_with_log($name, $GO, "install", $package) or die;
+}
+
+sub jar_install {
+    my ($self, $spec) = @_;
+    my $name = $spec->{name};
+    my $target = $self->resolve_home($spec->{target});
+    if (-e $target && !$ENV{FORCE}) {
+        $self->log($name, "You already have it, OK (you can set FORCE=1)");
+        return 1;
+    }
+    my $github_url = $spec->{github_url};
+    my @release = $self->{github_release}->get_latest_assets($github_url);
+    my ($release) = grep { /all-deps\.jar$/ } @release;
+    if (!$release) {
+        die "cannot find all-deps.jar in @release";
+    }
+    $self->log($name, "Downloading $release");
+    my $jar_target = catpath $self->{jar_dir}, basename($release);
+    my $res = $self->{http}->mirror($release => $jar_target);
+    die "$res->{status}, $release" if !$res->{success};
+
+    open my $fh, ">", $target or die;
+    print {$fh} qq[#!/bin/bash\n];
+    print {$fh} qq[exec java -jar $jar_target "\$@"\n];
+    close $fh;
+    chmod 0755, $target or die;
 }
 
 sub run {
@@ -299,6 +328,7 @@ sub run {
             ( map +{ type => "binary", spec => $_ }, @{ $yaml->{binary} || [] } ),
             ( map +{ type => "git", spec => $_ }, @{ $yaml->{git} || [] } ),
             ( map +{ type => "go", spec => $_ }, @{ $yaml->{go} || [] } ),
+            ( map +{ type => "jar", spec => $_ }, @{ $yaml->{jar} || [] } ),
         ],
         work => sub {
             my $task = shift;
