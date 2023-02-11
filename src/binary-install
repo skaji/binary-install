@@ -306,7 +306,7 @@ sub helm_install {
     my ($self, $spec) = @_;
     my $probe_latest_version = sub {
         my $spec = shift;
-        $self->{github_release}->get_latest_tag($spec->{github_url});
+        $self->{github_release}->get_latest_tag("https://github.com/helm/helm");
     };
     my $probe_latest_url = sub {
         my $spec = shift;

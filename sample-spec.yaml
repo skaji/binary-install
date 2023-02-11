@@ -26,4 +26,3 @@ kubectl:
 helm:
   - name: helm
     target: ~/bin/helm
-    github_url: https://github.com/helm/helm
