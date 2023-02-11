@@ -20,3 +20,10 @@ jar:
   - name: google-java-format
     target: ~/bin/google-java-format
     github_url: https://github.com/google/google-java-format
+kubectl:
+  - name: kubectl
+    target: ~/bin/kubectl
+helm:
+  - name: helm
+    target: ~/bin/helm
+    github_url: https://github.com/helm/helm

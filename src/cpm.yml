@@ -8,6 +8,7 @@ prereqs:
       GitHub::Release: { git: 'https://github.com/skaji/perl-github-release' }
       HTTP::Tinyish:
       IPC::Run3:
+      JSON::PP:
       Parallel::Pipes::App: { version: '0.102' }
       YAML::PP:
       parent:
