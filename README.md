@@ -1,13 +1,13 @@
 # binary-install
 
-Install binaries from github releases
+Install binaries
 
 # Usage
 
 Prepare spec.yaml:
 
 ```yaml
-binary:
+github:
   - name: jq
     target: ~/bin/jq
     github_url: https://github.com/stedolan/jq

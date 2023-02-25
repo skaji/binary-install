@@ -295,7 +295,7 @@ $fatpacked{"newgetopt.pl"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'NEWGE
 NEWGETOPT.PL
 
 $fatpacked{"parent.pm"} = '#line '.(1+__LINE__).' "'.__FILE__."\"\n".<<'PARENT';
-  package parent;use strict;our$VERSION='0.239';sub import {my$class=shift;my$inheritor=caller(0);if (@_ and $_[0]eq '-norequire'){shift @_}else {for (my@filename=@_){s{::|'}{/}g;require "$_.pm"}}{no strict 'refs';push @{"$inheritor\::ISA"},@_}};1;
+  package parent;use strict;our$VERSION='0.241';sub import {my$class=shift;my$inheritor=caller(0);if (@_ and $_[0]eq '-norequire'){shift @_}else {for (my@filename=@_){s{::|'}{/}g;require "$_.pm"}}{no strict 'refs';push @{"$inheritor\::ISA"},@_}};1;
 PARENT
 
 s/^  //mg for values %fatpacked;
@@ -611,7 +611,7 @@ sub _binary_install {
     1;
 }
 
-sub binary_install {
+sub github_install {
     my ($self, $spec) = @_;
     my $probe_latest_version = sub {
         my $spec = shift;
@@ -745,9 +745,11 @@ sub run {
     $self->cleanup;
 }
 
-Getopt::Long::Parser->new(
+my $parser = Getopt::Long::Parser->new(
     config => [qw(no_auto_abbrev no_ignore_case bundling)],
-)->getoptionsfromarray(\@ARGV,
+);
+
+$parser->getoptionsfromarray(\@ARGV,
     "h|help" => sub { die "Usage: binary-install spec.yaml\n" },
     "v|version" => sub { print "binary-install $VERSION\n"; exit },
 ) or exit;
