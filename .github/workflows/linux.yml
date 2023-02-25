@@ -14,7 +14,7 @@ jobs:
     container:
       image: perl:5.8-buster
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - run: |
           set -eux
           ./binary-install sample-spec.yaml

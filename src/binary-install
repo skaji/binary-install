@@ -41,7 +41,8 @@ sub new {
     my $cache_dir = catpath $base_dir, "cache";
     my $work_dir = catpath $base_dir, "work";
     my $jar_dir = catpath $base_dir, "jar";
-    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir, $jar_dir;
+    my $go_dir = catpath $base_dir, "go";
+    File::Path::mkpath $_ for $base_dir, $cache_dir, $work_dir, $jar_dir, $go_dir;
 
     my $os = $^O =~ /linux/i ? "linux" : $^O =~ /darwin/i ? "darwin" : die;
     my $_arch = (POSIX::uname)[4];
@@ -341,12 +342,21 @@ sub go_install {
         return;
     }
     my $target = $self->resolve_home($spec->{target});
-    if (-e $target && !$ENV{FORCE}) {
-        $self->log($name, "You already have it, OK (you can set FORCE=1)");
-        return 1;
+    if (-e $target) {
+        IPC::Run3::run3 [$GO, "version"], undef, \my $out1, undef;
+        my ($go_version) = $out1 =~ /go([0-9.]+)/;
+        IPC::Run3::run3 [$GO, "version", $target], undef, \my $out2, undef;
+        my ($target_version) = $out2 =~ /go([0-9.]+)/;
+        if ($go_version eq $target_version) {
+            $self->log($name, "You already have it, and it is built with go $go_version, OK");
+            return 1;
+        }
+        $self->log($name, "You have it (built with go $target_version), GO!");
+    } else {
+        $self->log($name, "You don't have one, GO!");
     }
     my $package = $spec->{package};
-    my $guard = pushd $self->{cache_dir};
+    my $guard = pushd $self->{go_dir};
     $self->run_with_log($name, $GO, "install", $package) or die;
 }
 
