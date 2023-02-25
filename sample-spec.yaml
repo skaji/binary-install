@@ -1,4 +1,4 @@
-binary:
+github:
   - name: jq
     target: ~/bin/jq
     github_url: https://github.com/stedolan/jq
