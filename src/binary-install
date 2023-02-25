@@ -60,6 +60,7 @@ sub new {
         work_dir => $work_dir,
         cache_dir => $cache_dir,
         jar_dir => $jar_dir,
+        go_dir => $go_dir,
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
     }, $class;
