@@ -4,7 +4,6 @@ prereqs:
       File::Temp: { version: '0.2311' }
       File::Which:
       File::pushd:
-      Getopt::Long: { version: '2.52' }
       GitHub::Release: { git: 'https://github.com/skaji/perl-github-release' }
       HTTP::Tinyish:
       IPC::Run3:

@@ -10,13 +10,13 @@ Prepare spec.yaml:
 github:
   - name: jq
     target: ~/bin/jq
-    github_url: https://github.com/stedolan/jq
+    url: https://github.com/stedolan/jq
   - name: ghq
     target: ~/bin/ghq
-    github_url: https://github.com/x-motemen/ghq
+    url: https://github.com/x-motemen/ghq
   - name: peco
     target: ~/bin/peco
-    github_url: https://github.com/peco/peco
+    url: https://github.com/peco/peco
 ```
 
 And execute `binary-install` so that binaries will be installed:
@@ -41,8 +41,8 @@ Download `binary-install`.
 ```
 ❯ wget https://raw.githubusercontent.com/skaji/binary-install/main/binary-install
 ❯ chmod +x binary-install
-❯ ./binary-install --version
-binary-install 0.0.1
+❯ ./binary-install -h
+Usage: binary-install spec.yaml
 ```
 
 # Copyright and License

@@ -12,7 +12,6 @@ use File::Spec;
 use File::Temp ();
 use File::Which ();
 use File::pushd qw(pushd);
-use Getopt::Long ();
 use GitHub::Release;
 use HTTP::Tinyish;
 use IPC::Run3 ();
@@ -22,8 +21,6 @@ use Parallel::Pipes::App;
 use YAML::PP;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
-
-our $VERSION = '0.0.1';
 
 sub catpath { File::Spec->catfile(@_) }
 
@@ -240,7 +237,6 @@ sub resolve_home {
 sub _binary_install {
     my ($self, $spec, $probe_latest_version, $probe_latest_url) = @_;
     my $name = $spec->{name};
-    my $github_url = $spec->{github_url};
     my $target = $self->resolve_home($spec->{target});
 
     if (-e $target and my $local_version = $self->probe_local_version($target)) {
@@ -282,11 +278,11 @@ sub github_install {
     my ($self, $spec) = @_;
     my $probe_latest_version = sub {
         my $spec = shift;
-        $self->{github_release}->get_latest_tag($spec->{github_url});
+        $self->{github_release}->get_latest_tag($spec->{url});
     };
     my $probe_latest_url = sub {
         my $spec = shift;
-        my @release = $self->{github_release}->get_latest_assets($spec->{github_url});
+        my @release = $self->{github_release}->get_latest_assets($spec->{url});
         $self->probe_github_release(@release);
     };
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
@@ -306,14 +302,14 @@ sub kubectl_install {
 
 sub helm_install {
     my ($self, $spec) = @_;
-    my $github_url = "https://github.com/helm/helm";
+    my $url = "https://github.com/helm/helm";
     my $probe_latest_version = sub {
         my $spec = shift;
-        $self->{github_release}->get_latest_tag($github_url);
+        $self->{github_release}->get_latest_tag($url);
     };
     my $probe_latest_url = sub {
         my $spec = shift;
-        my $version = $self->{github_release}->get_latest_tag($github_url);
+        my $version = $self->{github_release}->get_latest_tag($url);
         "https://get.helm.sh/helm-$version-$self->{os}-$self->{arch}.tar.gz";
     };
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
@@ -362,13 +358,13 @@ sub go_install {
     $self->run_with_log($name, $GO, "install", $package) or die;
 }
 
-sub jar_install {
+sub github_jar_install {
     my ($self, $spec) = @_;
     my $name = $spec->{name};
     my $target = $self->resolve_home($spec->{target});
-    my $github_url = $spec->{github_url};
+    my $url = $spec->{url};
     if (-e $target and my $local_version = $self->probe_local_version($target)) {
-        my $latest_tag = $self->{github_release}->get_latest_tag($github_url);
+        my $latest_tag = $self->{github_release}->get_latest_tag($url);
         if ($latest_tag =~ /$local_version/) {
             $self->log($name, "You have $local_version, latest_tag $latest_tag, OK");
             return 1;
@@ -378,7 +374,7 @@ sub jar_install {
         $self->log($name, "You don't have one, GO!");
     }
 
-    my @release = $self->{github_release}->get_latest_assets($github_url);
+    my @release = $self->{github_release}->get_latest_assets($url);
     my ($release) = grep { /all-deps\.jar$/ } @release;
     if (!$release) {
         die "cannot find all-deps.jar in @release";
@@ -422,16 +418,10 @@ sub run {
     $self->cleanup;
 }
 
-my $parser = Getopt::Long::Parser->new(
-    config => [qw(no_auto_abbrev no_ignore_case bundling)],
-);
-
-$parser->getoptionsfromarray(\@ARGV,
-    "h|help" => sub { die "Usage: binary-install spec.yaml\n" },
-    "v|version" => sub { print "binary-install $VERSION\n"; exit },
-) or exit;
-
-my $file = shift or die "missing spec.yaml\n";
+my $file = shift;
+if (!$file or $file =~ /^(-h|--help)$/) {
+    die "Usage: binary-install spec.yaml\n";
+}
 my $home = (<~>)[0];
 my $base_dir = catpath $home, ".binary-install";
 my $app = __PACKAGE__->new(home => $home, base_dir => $base_dir);

@@ -1,13 +1,13 @@
 github:
   - name: jq
     target: ~/bin/jq
-    github_url: https://github.com/stedolan/jq
+    url: https://github.com/stedolan/jq
   - name: ghq
     target: ~/bin/ghq
-    github_url: https://github.com/x-motemen/ghq
+    url: https://github.com/x-motemen/ghq
   - name: peco
     target: ~/bin/peco
-    github_url: https://github.com/peco/peco
+    url: https://github.com/peco/peco
 git:
   - name: plenv
     target: ~/env/plenv
@@ -16,10 +16,10 @@ go:
   - name: goimports
     target: ~/bin/goimports
     package: golang.org/x/tools/cmd/goimports@latest
-jar:
+github_jar:
   - name: google-java-format
     target: ~/bin/google-java-format
-    github_url: https://github.com/google/google-java-format
+    url: https://github.com/google/google-java-format
 kubectl:
   - name: kubectl
     target: ~/bin/kubectl
