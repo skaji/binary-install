@@ -401,16 +401,14 @@ sub run {
             warn "WARN: unknown type $type, skip\n";
             next;
         }
-        my $specs = $yaml->{$type};
-        push @task, ( map +{ type => $type, spec => $_ }, @$specs );
+        for my $spec (@{$yaml->{$type}}) {
+            next if exists $spec->{enabled} && !$spec->{enabled};
+            push @task, { type => $type, spec => $spec };
+        }
     }
     my $work = sub {
         my $task = shift;
         my $method = "$task->{type}_install";
-        if (exists $task->{spec}{enabled} && !$task->{spec}{enabled}) {
-            $self->log($task->{spec}{name}, "skip because enabled false");
-            return;
-        }
         eval { $self->$method($task->{spec}) };
         warn $@ if $@;
     };
