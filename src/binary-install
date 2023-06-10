@@ -404,7 +404,7 @@ sub run {
         for my $spec (@{$yaml->{$type}}) {
             next if exists $spec->{enabled} && !$spec->{enabled};
             my $priority = $spec->{priority} || 0;
-            push @task, { type => $type, spec => $spec };
+            push @task, { type => $type, spec => $spec, priority => $priority };
         }
     }
     @task = sort { $a->{priority} <=> $b->{priority} } @task;
