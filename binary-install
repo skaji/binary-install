@@ -340,6 +340,7 @@ my $ARCHIVE = qr/(?:$TAR|$ZIP)/;
 
 my $GIT = File::Which::which("git");
 my $GO = File::Which::which("go");
+my $JAVA = File::Which::which("java");
 
 sub new {
     my ($class, %argv) = @_;
@@ -671,6 +672,10 @@ sub go_install {
 sub github_jar_install {
     my ($self, $spec) = @_;
     my $name = $spec->{name};
+    if (!$JAVA) {
+        $self->log($name, "need java, skip");
+        return;
+    }
     my $target = $self->resolve_home($spec->{target});
     my $url = $spec->{url};
     if (-e $target and my $local_version = $self->probe_local_version($target)) {
