@@ -301,6 +301,21 @@ sub kubectl_install {
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
 }
 
+sub spin_install {
+    my ($self, $spec) = @_;
+    my $probe_latest_version = sub {
+        my $version = $self->http_get("https://storage.googleapis.com/spinnaker-artifacts/spin/latest");
+        chomp $version;
+        $version;
+    };
+    my $probe_latest_url = sub {
+        my $version = $self->http_get("https://storage.googleapis.com/spinnaker-artifacts/spin/latest");
+        chomp $version;
+        "https://storage.googleapis.com/spinnaker-artifacts/spin/$version/$self->{os}/$self->{arch}/spin";
+    };
+    $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
+}
+
 sub helm_install {
     my ($self, $spec) = @_;
     my $url = "https://github.com/helm/helm";

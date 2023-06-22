@@ -1,5 +1,6 @@
 github:
   - name: jq
+    enabled: false
     target: ~/bin/jq
     url: https://github.com/jqlang/jq
   - name: ghq
@@ -26,3 +27,6 @@ kubectl:
 helm:
   - name: helm
     target: ~/bin/helm
+spin:
+  - name: spin
+    target: ~/bin/spin
