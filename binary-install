@@ -733,6 +733,16 @@ sub run {
         }
         for my $spec (@{$yaml->{$type}}) {
             next if exists $spec->{enabled} && !$spec->{enabled};
+            if ($spec->{only}) {
+                my $ok;
+                for my $os_arch (split /\s*,\s*/, $spec->{only}) {
+                    my ($os, $arch) = split m{/}, $os_arch;
+                    if ($os eq $self->{os} and (!$arch or $arch eq $self->{arch})) {
+                        $ok++, last;
+                    }
+                }
+                next if !$ok;
+            }
             my $priority = $spec->{priority} || 0;
             push @task, { type => $type, spec => $spec, priority => $priority };
         }
