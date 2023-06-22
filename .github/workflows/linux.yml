@@ -19,6 +19,6 @@ jobs:
           set -eux
           ./binary-install sample-spec.yaml
           ls -al ~/bin/ghq
-          ls -al ~/bin/jq
+          ls -al ~/bin/spin
           ls -al ~/bin/peco
 
