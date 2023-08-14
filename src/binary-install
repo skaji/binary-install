@@ -31,6 +31,7 @@ my $ARCHIVE = qr/(?:$TAR|$ZIP)/;
 my $GIT = File::Which::which("git");
 my $GO = File::Which::which("go");
 my $JAVA = File::Which::which("java");
+my $LOG_GO = "\e[1;35mGO!\e[m";
 
 sub new {
     my ($class, %argv) = @_;
@@ -246,9 +247,9 @@ sub _binary_install {
             $self->log($name, "You have $local_version, latest_version $latest_version, OK");
             return 1;
         }
-        $self->log($name, "You have $local_version, latest_version $latest_version, GO!");
+        $self->log($name, "You have $local_version, latest_version $latest_version, $LOG_GO");
     } else {
-        $self->log($name, "You don't have one, GO!");
+        $self->log($name, "You don't have one, $LOG_GO");
     }
 
     my $latest_url = $probe_latest_url->($spec);
@@ -365,9 +366,9 @@ sub go_install {
             $self->log($name, "You already have it, and it is built with go $go_version, OK");
             return 1;
         }
-        $self->log($name, "You have it (built with go $target_version), GO!");
+        $self->log($name, "You have it (built with go $target_version), $LOG_GO");
     } else {
-        $self->log($name, "You don't have one, GO!");
+        $self->log($name, "You don't have one, $LOG_GO");
     }
     my $package = $spec->{package};
     my $guard = pushd $self->{go_dir};
@@ -389,9 +390,9 @@ sub github_jar_install {
             $self->log($name, "You have $local_version, latest_tag $latest_tag, OK");
             return 1;
         }
-        $self->log($name, "You have $local_version, latest_tag $latest_tag, GO!");
+        $self->log($name, "You have $local_version, latest_tag $latest_tag, $LOG_GO");
     } else {
-        $self->log($name, "You don't have one, GO!");
+        $self->log($name, "You don't have one, $LOG_GO");
     }
 
     my @release = $self->{github_release}->get_latest_assets($url);
