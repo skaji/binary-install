@@ -10,7 +10,7 @@ Prepare spec.yaml:
 github:
   - name: jq
     target: ~/bin/jq
-    url: https://github.com/stedolan/jq
+    url: https://github.com/jqlang/jq
   - name: ghq
     target: ~/bin/ghq
     url: https://github.com/x-motemen/ghq

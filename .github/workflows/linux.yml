@@ -12,9 +12,9 @@ jobs:
   perl:
     runs-on: ubuntu-latest
     container:
-      image: perl:5.8-buster
+      image: perl:5.16-buster
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - run: |
           set -eux
           ./binary-install sample-spec.yaml

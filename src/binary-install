@@ -1,7 +1,6 @@
 #!/usr/bin/env perl
-use 5.8.1;
+use v5.16;
 use strict;
-use warnings;
 
 use Digest::MD5 ();
 use File::Basename qw(basename dirname);
@@ -157,7 +156,7 @@ sub probe_github_release {
         my $want_arch = $want_archs->[$i];
         for my $release (@release) {
             DEBUG and $i == 0 and warn $release;
-            (my $file = $release) =~ s{.*/releases/download/}{};
+            my $file = $release =~ s{.*/releases/download/}{}r;
             if ($file =~ $want_os && $file =~ $want_arch) {
                 push @candidate, $release;
             }
@@ -232,8 +231,7 @@ sub probe_binary_in_dir {
 
 sub resolve_home {
     my ($self, $path) = @_;
-    $path =~ s/^~/$self->{home}/;
-    $path;
+    $path =~ s/^~/$self->{home}/r;
 }
 
 sub _binary_install {
