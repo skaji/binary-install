@@ -729,6 +729,7 @@ sub run {
     @task = sort { $a->{priority} <=> $b->{priority} } @task;
     my $work = sub {
         my $task = shift;
+        local $0 = "$0 ($task->{spec}{name})";
         my $method = "$task->{type}_install";
         eval { $self->$method($task->{spec}) };
         warn $@ if $@;
