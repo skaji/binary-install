@@ -33,9 +33,9 @@ my $JAVA = File::Which::which("java");
 my $LOG_GO = "\e[1;35mGO!\e[m";
 
 sub new {
-    my ($class, %argv) = @_;
-    my $home = $argv{home};
-    my $base_dir = $argv{base_dir};
+    my $class = shift;
+    my $home = (<~>)[0];
+    my $base_dir = catpath $home, ".binary-install";
     my $cache_dir = catpath $base_dir, "cache";
     my $work_dir = catpath $base_dir, "work";
     my $jar_dir = catpath $base_dir, "jar";
@@ -412,6 +412,8 @@ sub github_jar_install {
 
 sub run {
     my ($self, $file) = @_;
+    die "Usage: binary-install spec.yaml\n" if !$file or !-f $file;
+
     my ($yaml) = YAML::PP->new->load_file($file);
 
     my @task;

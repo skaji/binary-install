@@ -1,7 +1,7 @@
 prereqs:
   runtime:
     requires:
-      File::Temp: { version: '0.2311' }
+      File::Temp:
       File::Which:
       File::pushd:
       GitHub::Release: { git: 'https://github.com/skaji/perl-github-release' }
@@ -10,4 +10,3 @@ prereqs:
       JSON::PP: { version: '4.16' }
       Parallel::Pipes::App: { version: '0.102' }
       YAML::PP:
-      parent:

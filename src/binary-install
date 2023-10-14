@@ -3,9 +3,4 @@ use v5.16;
 use warnings;
 
 use App;
-
-die "Usage: binary-install spec.yaml\n" if !@ARGV or $ARGV[0] =~ /^(-h|--help)$/;
-
-my $home = (<~>)[0];
-my $app = App->new(home => $home, base_dir => "$home/.binary-install");
-$app->run(@ARGV);
+App->new->run(@ARGV);
