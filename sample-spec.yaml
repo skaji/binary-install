@@ -1,6 +1,5 @@
 github:
   - name: jq
-    only: linux, darwin/amd64
     target: ~/bin/jq
     url: https://github.com/jqlang/jq
   - name: ghq
