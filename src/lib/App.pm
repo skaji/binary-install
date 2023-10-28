@@ -284,11 +284,12 @@ sub github_install {
     my ($self, $spec) = @_;
     my $probe_latest_version = sub {
         my $spec = shift;
-        my @tag = $self->{github_release}->get_tags($spec->{url});
         if (my $version_regexp = $spec->{version_regexp}) {
+            my @tag = $self->{github_release}->get_tags($spec->{url});
             @tag = grep { /$version_regexp/ } @tag;
+            return $tag[0];
         }
-        $tag[0] // 'FAIL_LATEST_VERSION';
+        $self->{github_release}->get_latest_tag($spec->{url});
     };
     my $probe_latest_url = sub {
         my $spec = shift;
