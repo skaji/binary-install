@@ -182,7 +182,7 @@ sub probe_github_release {
 }
 
 sub probe_local_version {
-    my ($self, $target) = @_;
+    my ($self, $target, $version_regexp) = @_;
     if ($target =~ /kubectl$/) {
         IPC::Run3::run3 [$target, qw(version --client --output json)], \undef, \my $out, undef;
         my $v = JSON::PP::decode_json $out;
@@ -196,10 +196,16 @@ sub probe_local_version {
             return;
         }
         if ($? == 0) {
-            if ($out =~ /(\d+\.\d+\.\d+)/) {
-                return $1;
-            } elsif ($out =~ /(\d+\.\d+)/) {
-                return $1;
+            if ($version_regexp) {
+                if ($out =~ /$version_regexp/) {
+                    return $1;
+                }
+            } else {
+                if ($out =~ /(\d+\.\d+\.\d+)/) {
+                    return $1;
+                } elsif ($out =~ /(\d+\.\d+)/) {
+                    return $1;
+                }
             }
         }
         DEBUG and warn "$target $option: $out\n";
@@ -239,7 +245,7 @@ sub _binary_install {
     my $name = $spec->{name};
     my $target = $self->resolve_home($spec->{target});
 
-    if (-e $target and my $local_version = $self->probe_local_version($target)) {
+    if (-e $target and my $local_version = $self->probe_local_version($target, $spec->{version_regexp})) {
         my $latest_version = $probe_latest_version->($spec);
         if ($latest_version =~ /$local_version/) {
             $self->log($name, "You have $local_version, latest_version $latest_version, OK");
@@ -278,11 +284,16 @@ sub github_install {
     my ($self, $spec) = @_;
     my $probe_latest_version = sub {
         my $spec = shift;
-        $self->{github_release}->get_latest_tag($spec->{url});
+        my @tag = $self->{github_release}->get_tags($spec->{url});
+        if (my $version_regexp = $spec->{version_regexp}) {
+            @tag = grep { /$version_regexp/ } @tag;
+        }
+        $tag[0] // 'FAIL_LATEST_VERSION';
     };
     my $probe_latest_url = sub {
         my $spec = shift;
-        my @release = $self->{github_release}->get_latest_assets($spec->{url});
+        my $latest_version = $probe_latest_version->($spec);
+        my @release = $self->{github_release}->get_assets($spec->{url}, $latest_version);
         $self->probe_github_release(@release);
     };
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
