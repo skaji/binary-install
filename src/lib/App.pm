@@ -61,6 +61,7 @@ sub new {
         go_dir => $go_dir,
         http => HTTP::Tinyish->new(verify_SSL => 1),
         github_release => GitHub::Release->new,
+        _workers => {},
     }, $class;
 }
 
@@ -458,7 +459,25 @@ sub run {
         eval { $self->$method($task->{spec}) };
         warn $@ if $@;
     };
-    Parallel::Pipes::App->map(num => 2, tasks => \@task, work => $work);
+    Parallel::Pipes::App->run(
+        num => 2,
+        work => $work,
+        tasks => \@task,
+        before_work => sub {
+            my ($task, $worker) = @_;
+            $self->{_workers}{$worker->{pid}} = $task->{spec}{name};
+        },
+        after_work => sub {
+            my ($task, $worker) = @_;
+            delete $self->{_workers}{$worker->{pid}};
+        },
+        idle_tick => 5,
+        idle_work => sub {
+            if (my @name = sort values %{$self->{_workers}}) {
+                $self->log($_, "Still running...") for @name;
+            }
+        },
+    );
     $self->cleanup;
 }
 
