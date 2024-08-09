@@ -352,11 +352,20 @@ sub git_install {
     }
     my $target = $self->resolve_home($spec->{target});
     my $url = $spec->{url};
+    my $ref = $spec->{ref};
     if (-e $target) {
         my $guard = pushd $target;
-        $self->run_with_log($name, $GIT, "pull") or die;
+        if ($ref) {
+            $self->run_with_log($name, $GIT, "fetch") or die;
+            $self->run_with_log($name, $GIT, "checkout", $ref) or die;
+        } else {
+            $self->run_with_log($name, $GIT, "pull") or die;
+        }
     } else {
         $self->run_with_log($name, $GIT, "clone", $url, $target) or die;
+        if ($ref) {
+            $self->run_with_log($name, $GIT, "checkout", $ref) or die;
+        }
     }
 }
 
