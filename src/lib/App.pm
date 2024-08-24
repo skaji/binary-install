@@ -31,6 +31,7 @@ my $GIT = File::Which::which("git");
 my $GO = File::Which::which("go");
 my $JAVA = File::Which::which("java");
 my $LOG_GO = "\e[1;35mGO!\e[m";
+my $LOG_DONE = "\e[1;35mDONE!\e[m";
 
 sub new {
     my $class = shift;
@@ -517,6 +518,7 @@ sub run {
         my $method = "$task->{type}_install";
         eval { $self->$method($task->{spec}) };
         warn $@ if $@;
+        $task;
     };
     Parallel::Pipes::App->run(
         num => 2,
@@ -524,10 +526,15 @@ sub run {
         tasks => \@task,
         before_work => sub {
             my ($task, $worker) = @_;
+            $task->{_start} = time;
             $self->{_workers}{$worker->{pid}} = $task->{spec}{name};
         },
         after_work => sub {
             my ($task, $worker) = @_;
+            my $diff = time - $task->{_start};
+            if ($diff > 5) {
+                $self->log($task->{spec}{name}, $LOG_DONE);
+            }
             delete $self->{_workers}{$worker->{pid}};
         },
         idle_tick => 5,
