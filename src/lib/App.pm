@@ -236,15 +236,51 @@ sub probe_binary_in_dir {
     die "cannot find binary";
 }
 
+sub resolve_target {
+    my ($self, $path) = @_;
+    my $target = $self->resolve_home($path);
+    $self->resolve_shell($target);
+}
+
 sub resolve_home {
     my ($self, $path) = @_;
     $path =~ s/^~/$self->{home}/r;
 }
 
+sub resolve_shell {
+    my ($self, $path) = @_;
+    return $path if $path !~ /\$/;
+
+    my $fail;
+    my $env = sub {
+        my $name = shift;
+        return $name if exists $ENV{$name};
+        $fail = "missing env $name";
+        return "";
+    };
+    my $cmd = sub {
+        my $shell = shift;
+        my $out = `$shell`;
+        if ($? != 0) {
+            $fail = "failed: $shell";
+            return;
+        }
+        chomp $out;
+        $out;
+    };
+    $path =~ s/\$\{?([A-Za-z0-9_]+)\}?/$env->($1)/eg;
+    $path =~ s/\$\(([^\)]+)\)/$cmd->($1)/eg;
+    return $path, $fail;
+}
+
 sub _binary_install {
     my ($self, $spec, $probe_latest_version, $probe_latest_url) = @_;
     my $name = $spec->{name};
-    my $target = $self->resolve_home($spec->{target});
+    my ($target, $resolve_fail) = $self->resolve_target($spec->{target});
+    if ($resolve_fail) {
+        $self->log($name, $resolve_fail);
+        return 1;
+    }
 
     if (-e $target and my $local_version = $self->probe_local_version($target, $spec->{version_regexp})) {
         my $latest_version = $probe_latest_version->($spec);
@@ -350,7 +386,11 @@ sub git_install {
         $self->log($name, "need git, skip");
         return;
     }
-    my $target = $self->resolve_home($spec->{target});
+    my ($target, $resolve_fail) = $self->resolve_target($spec->{target});
+    if ($resolve_fail) {
+        $self->log($name, $resolve_fail);
+        return 1;
+    }
     my $url = $spec->{url};
     my $ref = $spec->{ref};
     if (-e $target) {
@@ -376,7 +416,11 @@ sub go_install {
         $self->log($name, "need go, skip");
         return;
     }
-    my $target = $self->resolve_home($spec->{target});
+    my ($target, $resolve_fail) = $self->resolve_target($spec->{target});
+    if ($resolve_fail) {
+        $self->log($name, $resolve_fail);
+        return 1;
+    }
     if (-e $target) {
         IPC::Run3::run3 [$GO, "version"], undef, \my $out1, undef;
         my ($go_version) = $out1 =~ /go([0-9.]+)/;
@@ -391,6 +435,8 @@ sub go_install {
         $self->log($name, "You don't have one, $LOG_GO");
     }
     my $package = $spec->{package};
+    my $target_dir = dirname $target;
+    local %ENV = (%ENV, GOBIN => $target_dir);
     my $guard = pushd $self->{go_dir};
     $self->run_with_log($name, $GO, "install", $package) or die;
 }
@@ -402,7 +448,11 @@ sub github_jar_install {
         $self->log($name, "need java, skip");
         return;
     }
-    my $target = $self->resolve_home($spec->{target});
+    my ($target, $resolve_fail) = $self->resolve_target($spec->{target});
+    if ($resolve_fail) {
+        $self->log($name, $resolve_fail);
+        return 1;
+    }
     my $url = $spec->{url};
     if (-e $target and my $local_version = $self->probe_local_version($target)) {
         my $latest_tag = $self->{github_release}->get_latest_tag($url);
