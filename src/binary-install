@@ -3,4 +3,10 @@ use v5.16;
 use warnings;
 
 use App;
+
+if ($^O eq "darwin") {
+    require Socket;
+    Socket::inet_aton("call-inet_aton-before_fork");
+}
+
 App->new->run(@ARGV);
