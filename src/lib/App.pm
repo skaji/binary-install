@@ -148,9 +148,9 @@ sub probe_github_release {
         $want_os = qr/(?:darwin|macos|osx)/i;
     }
     if ($self->{arch} eq "amd64") {
-        $want_archs = [qr/(?:amd64|x86_64)/i, qr/64/, qr/all/i];
+        $want_archs = [qr/(?:amd64|x86_64)/i, qr/64/, qr/all/i, qr/universal/i];
     } else {
-        $want_archs = [qr/(?:arm64|AArch64)/i, qr/(?:amd64|x86_64)/i, qr/64/, qr/all/i];
+        $want_archs = [qr/(?:arm64|AArch64)/i, qr/(?:amd64|x86_64)/i, qr/64/, qr/all/i, qr/universal/i];
     }
 
     my @candidate;
@@ -166,7 +166,8 @@ sub probe_github_release {
         last if @candidate;
     }
     if (!@candidate) {
-        die "cannot probe release @release";
+        warn "---> $_\n" for @release;
+        die "cannot probe release";
     }
     my $sort_by = sub {
         my ($b, $a) = @_;
@@ -223,10 +224,10 @@ sub probe_binary_in_dir {
         my $file = $_;
         DEBUG and warn $file;
         return if !-f $file;
+        my $size = (stat $file)[7];
         if (basename($file) eq $name) {
-            push @candidate, { file => $file, size => 1_000_000_000 };
+            push @candidate, { file => $file, size => $size + 1_000_000_000 };
         } elsif (-x $file) {
-            my $size = (stat $file)[7];
             push @candidate, { file => $file, size => $size };
         }
     }}, ".");
