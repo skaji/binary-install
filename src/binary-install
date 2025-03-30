@@ -3,11 +3,8 @@ use v5.16;
 use warnings;
 
 use App;
+use Darwin::InitObjC;
 
-if ($^O eq "darwin" && $^X eq "/usr/bin/perl") {
-    my $lib = "/System/Library/Frameworks/Foundation.framework/Foundation";
-    require DynaLoader;
-    DynaLoader::dl_load_file $lib;
-}
+Darwin::InitObjC::maybe_init();
 
 App->new->run(@ARGV);

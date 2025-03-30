@@ -1,10 +1,11 @@
 prereqs:
   runtime:
     requires:
+      Darwin::InitObjC: { git: 'https://github.com/skaji/perl-Darwin-InitObjC.git' }
       File::Temp:
       File::Which:
       File::pushd:
-      GitHub::Release: { git: 'https://github.com/skaji/perl-github-release' }
+      GitHub::Release: { git: 'https://github.com/skaji/perl-github-release.git' }
       HTTP::Tinyish:
       IPC::Run3:
       JSON::PP: { version: '4.16' }
