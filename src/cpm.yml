@@ -1,7 +1,7 @@
 prereqs:
   runtime:
     requires:
-      Darwin::InitObjC: { git: 'https://github.com/skaji/perl-Darwin-InitObjC.git' }
+      Darwin::InitObjC:
       File::Temp:
       File::Which:
       File::pushd:
@@ -9,5 +9,5 @@ prereqs:
       HTTP::Tinyish:
       IPC::Run3:
       JSON::PP: { version: '4.16' }
-      Parallel::Pipes::App: { version: '0.102' }
+      Parallel::Pipes::App:
       YAML::PP:
