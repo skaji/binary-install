@@ -1,6 +1,7 @@
 package App;
-use v5.16;
+use v5.20;
 use warnings;
+use experimental qw(signatures postderef);
 
 use Digest::MD5 ();
 use File::Basename qw(basename dirname);
@@ -21,7 +22,7 @@ use YAML::PP;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
 
-sub catpath { File::Spec->catfile(@_) }
+sub catpath (@argv) { File::Spec->catfile(@argv) }
 
 my $TAR = qr/\.(?:tgz|tar\.(?:gz|bz2|xz))$/;
 my $ZIP = qr/\.zip$/;
@@ -33,8 +34,7 @@ my $JAVA = File::Which::which("java");
 my $LOG_GO = "\e[1;35mGO!\e[m";
 my $LOG_DONE = "\e[1;35mDONE!\e[m";
 
-sub new {
-    my $class = shift;
+sub new ($class) {
     my $home = (<~>)[0];
     my $base_dir = catpath $home, ".binary-install";
     my $cache_dir = catpath $base_dir, "cache";
@@ -66,8 +66,7 @@ sub new {
     }, $class;
 }
 
-sub run_with_log {
-    my ($self, $name, @cmd) = @_;
+sub run_with_log ($self, $name, @cmd) {
     $self->log($name, "@cmd");
     my $pid = open my $fh, "-|";
     if ($pid == 0) {
@@ -82,14 +81,12 @@ sub run_with_log {
     $? == 0;
 }
 
-sub log {
-    my ($self, $name, $msg) = @_;
+sub log ($self, $name, $msg) {
     chomp $msg;
     warn "[\e[1;32m$name\e[m] $msg\n";
 }
 
-sub download {
-    my ($self, $url) = @_;
+sub download ($self, $url) {
     my $md5 = substr Digest::MD5::md5_hex($url), 0, 8;
     my $local_file = catpath $self->{cache_dir}, $md5 . "-" . basename($url);
     my $res = $self->{http}->mirror($url => $local_file);
@@ -97,15 +94,13 @@ sub download {
     $local_file;
 }
 
-sub http_get {
-    my ($self, $url) = @_;
+sub http_get ($self, $url) {
     my $res = $self->{http}->get($url);
     die "$res->{status}, $url\n" if !$res->{success};
     $res->{content};
 }
 
-sub unpack {
-    my ($self, $archive) = @_;
+sub unpack ($self, $archive) {
     my $tempdir = File::Temp::tempdir
         TEMPLATE => "unpack-XXXXX",
         CLEANUP => 0,
@@ -122,8 +117,7 @@ sub unpack {
     $tempdir;
 }
 
-sub cleanup {
-    my $self = shift;
+sub cleanup ($self) {
     opendir my ($dh), $self->{work_dir} or die;
     my $one_week_ago = time - 7*24*60*60;
     my @obsolete =
@@ -139,8 +133,7 @@ sub cleanup {
     }
 }
 
-sub probe_github_release {
-    my ($self, @release) = @_;
+sub probe_github_release ($self, @release) {
     my ($want_os, $want_archs);
     if ($self->{os} eq "linux") {
         $want_os = qr/linux/i;
@@ -154,7 +147,7 @@ sub probe_github_release {
     }
 
     my @candidate;
-    for my $i (0 .. $#{$want_archs}) {
+    for my $i (0 .. $want_archs->$#*) {
         my $want_arch = $want_archs->[$i];
         for my $release (@release) {
             DEBUG and $i == 0 and warn $release;
@@ -169,8 +162,7 @@ sub probe_github_release {
         warn "---> $_\n" for @release;
         die "cannot probe release";
     }
-    my $sort_by = sub {
-        my ($b, $a) = @_;
+    my $sort_by = sub ($a, $b) {
         if ($b =~ $ARCHIVE && $a =~ $ARCHIVE) {
             return 0;
         } elsif ($b =~ $ARCHIVE) {
@@ -184,8 +176,7 @@ sub probe_github_release {
     (sort { $sort_by->($b, $a) } @candidate)[0];
 }
 
-sub probe_local_version {
-    my ($self, $target, $version_regexp) = @_;
+sub probe_local_version ($self, $target, $version_regexp) {
     if ($target =~ /kubectl$/) {
         IPC::Run3::run3 [$target, qw(version --client --output json)], \undef, \my $out, undef;
         my $v = JSON::PP::decode_json $out;
@@ -216,11 +207,10 @@ sub probe_local_version {
     die "cannot probe version: $target";
 }
 
-sub probe_binary_in_dir {
-    my ($self, $name, $dir) = @_;
+sub probe_binary_in_dir ($self, $name, $dir) {
     my $guard = pushd $dir;
     my @candidate;
-    File::Find::find({no_chdir => 1, wanted => sub {
+    File::Find::find({no_chdir => 1, wanted => sub () {
         my $file = $_;
         DEBUG and warn $file;
         return if !-f $file;
@@ -238,30 +228,25 @@ sub probe_binary_in_dir {
     die "cannot find binary";
 }
 
-sub resolve_target {
-    my ($self, $path) = @_;
+sub resolve_target ($self, $path) {
     my $target = $self->resolve_home($path);
     $self->resolve_shell($target);
 }
 
-sub resolve_home {
-    my ($self, $path) = @_;
+sub resolve_home ($self, $path) {
     $path =~ s/^~/$self->{home}/r;
 }
 
-sub resolve_shell {
-    my ($self, $path) = @_;
+sub resolve_shell ($self, $path) {
     return $path if $path !~ /\$/;
 
     my $fail;
-    my $env = sub {
-        my $name = shift;
+    my $env = sub ($name) {
         return $name if exists $ENV{$name};
         $fail = "missing env $name";
         return "";
     };
-    my $cmd = sub {
-        my $shell = shift;
+    my $cmd = sub ($shell) {
         my $out = `$shell`;
         if ($? != 0) {
             $fail = "failed: $shell";
@@ -275,8 +260,7 @@ sub resolve_shell {
     return $path, $fail;
 }
 
-sub _binary_install {
-    my ($self, $spec, $probe_latest_version, $probe_latest_url) = @_;
+sub _binary_install ($self, $spec, $probe_latest_version, $probe_latest_url) {
     my $name = $spec->{name};
     my ($target, $resolve_fail) = $self->resolve_target($spec->{target});
     if ($resolve_fail) {
@@ -319,10 +303,8 @@ sub _binary_install {
     1;
 }
 
-sub github_install {
-    my ($self, $spec) = @_;
-    my $probe_latest_version = sub {
-        my $spec = shift;
+sub github_install ($self, $spec) {
+    my $probe_latest_version = sub ($spec) {
         if (my $version_regexp = $spec->{version_regexp}) {
             my @tag = $self->{github_release}->get_tags($spec->{url});
             @tag = grep { /$version_regexp/ } @tag;
@@ -330,8 +312,7 @@ sub github_install {
         }
         $self->{github_release}->get_latest_tag($spec->{url});
     };
-    my $probe_latest_url = sub {
-        my $spec = shift;
+    my $probe_latest_url = sub ($spec) {
         my $latest_version = $probe_latest_version->($spec);
         my @release = $self->{github_release}->get_assets($spec->{url}, $latest_version);
         $self->probe_github_release(@release);
@@ -339,26 +320,24 @@ sub github_install {
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
 }
 
-sub kubectl_install {
-    my ($self, $spec) = @_;
-    my $probe_latest_version = sub {
+sub kubectl_install ($self, $spec) {
+    my $probe_latest_version = sub ($spec) {
         $self->http_get("https://dl.k8s.io/release/stable.txt");
     };
-    my $probe_latest_url = sub {
+    my $probe_latest_url = sub ($spec) {
         my $version = $self->http_get("https://dl.k8s.io/release/stable.txt");
         "https://dl.k8s.io/release/$version/bin/$self->{os}/$self->{arch}/kubectl";
     };
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
 }
 
-sub spin_install {
-    my ($self, $spec) = @_;
-    my $probe_latest_version = sub {
+sub spin_install ($self, $spec) {
+    my $probe_latest_version = sub ($spec) {
         my $version = $self->http_get("https://storage.googleapis.com/spinnaker-artifacts/spin/latest");
         chomp $version;
         $version;
     };
-    my $probe_latest_url = sub {
+    my $probe_latest_url = sub ($spec) {
         my $version = $self->http_get("https://storage.googleapis.com/spinnaker-artifacts/spin/latest");
         chomp $version;
         "https://storage.googleapis.com/spinnaker-artifacts/spin/$version/$self->{os}/$self->{arch}/spin";
@@ -366,23 +345,19 @@ sub spin_install {
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
 }
 
-sub helm_install {
-    my ($self, $spec) = @_;
+sub helm_install ($self, $spec) {
     my $url = "https://github.com/helm/helm";
-    my $probe_latest_version = sub {
-        my $spec = shift;
+    my $probe_latest_version = sub ($spec) {
         $self->{github_release}->get_latest_tag($url);
     };
-    my $probe_latest_url = sub {
-        my $spec = shift;
+    my $probe_latest_url = sub ($spec) {
         my $version = $self->{github_release}->get_latest_tag($url);
         "https://get.helm.sh/helm-$version-$self->{os}-$self->{arch}.tar.gz";
     };
     $self->_binary_install($spec, $probe_latest_version, $probe_latest_url);
 }
 
-sub git_install {
-    my ($self, $spec) = @_;
+sub git_install ($self, $spec) {
     my $name = $spec->{name};
     if (!$GIT) {
         $self->log($name, "need git, skip");
@@ -411,8 +386,7 @@ sub git_install {
     }
 }
 
-sub go_install {
-    my ($self, $spec) = @_;
+sub go_install ($self, $spec) {
     my $name = $spec->{name};
     if (!$GO) {
         $self->log($name, "need go, skip");
@@ -443,8 +417,7 @@ sub go_install {
     $self->run_with_log($name, $GO, "install", $package) or die;
 }
 
-sub github_jar_install {
-    my ($self, $spec) = @_;
+sub github_jar_install ($self, $spec) {
     my $name = $spec->{name};
     if (!$JAVA) {
         $self->log($name, "need java, skip");
@@ -484,8 +457,7 @@ sub github_jar_install {
     chmod 0755, $target or die;
 }
 
-sub run {
-    my ($self, $file) = @_;
+sub run ($self, $file) {
     die "Usage: binary-install spec.yaml\n" if !$file or !-f $file;
 
     my ($yaml) = YAML::PP->new->load_file($file);
@@ -496,7 +468,7 @@ sub run {
             warn "WARN: unknown type $type, skip\n";
             next;
         }
-        for my $spec (@{$yaml->{$type}}) {
+        for my $spec ($yaml->{$type}->@*) {
             next if exists $spec->{enabled} && !$spec->{enabled};
             if ($spec->{only}) {
                 my $ok;
@@ -513,8 +485,7 @@ sub run {
         }
     }
     @task = sort { $a->{priority} <=> $b->{priority} } @task;
-    my $work = sub {
-        my $task = shift;
+    my $work = sub ($task) {
         local $0 = "$0 ($task->{spec}{name})";
         my $method = "$task->{type}_install";
         eval { $self->$method($task->{spec}) };
@@ -525,13 +496,11 @@ sub run {
         num => 2,
         work => $work,
         tasks => \@task,
-        before_work => sub {
-            my ($task, $worker) = @_;
+        before_work => sub ($task, $worker) {
             $task->{_start} = time;
             $self->{_workers}{$worker->{pid}} = $task->{spec}{name};
         },
-        after_work => sub {
-            my ($task, $worker) = @_;
+        after_work => sub ($task, $worker) {
             my $diff = time - $task->{_start};
             if ($diff > 5) {
                 $self->log($task->{spec}{name}, $LOG_DONE);
@@ -539,8 +508,8 @@ sub run {
             delete $self->{_workers}{$worker->{pid}};
         },
         idle_tick => 5,
-        idle_work => sub {
-            if (my @name = sort values %{$self->{_workers}}) {
+        idle_work => sub () {
+            if (my @name = sort values $self->{_workers}->%*) {
                 $self->log($_, "Still running...") for @name;
             }
         },

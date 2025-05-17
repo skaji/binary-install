@@ -1,6 +1,6 @@
 fatpack:
 	rm -rf local
-	cpm install --target-perl 5.16
+	cpm install --target-perl 5.20
 	fatpack-simple --cache ~/.perl-cpm/.fatpack-cache binary-install -o ../binary-install
 	perl-gzip-script -i ../binary-install
 	chmod +x ../binary-install
