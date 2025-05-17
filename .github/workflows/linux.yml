@@ -12,7 +12,7 @@ jobs:
   perl:
     runs-on: ubuntu-latest
     container:
-      image: perl:5.16-buster
+      image: perl:5.20-buster
     steps:
       - uses: actions/checkout@v4
       - run: |
