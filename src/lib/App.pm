@@ -176,7 +176,7 @@ sub probe_github_release ($self, @release) {
     (sort { $sort_by->($b, $a) } @candidate)[0];
 }
 
-sub probe_local_version ($self, $target, $version_regexp) {
+sub probe_local_version ($self, $target, $version_regexp = undef) {
     if ($target =~ /kubectl$/) {
         IPC::Run3::run3 [$target, qw(version --client --output json)], \undef, \my $out, undef;
         my $v = JSON::PP::decode_json $out;
