@@ -14,8 +14,8 @@ IPC::Run3 0.049 R/RJ/RJBS/IPC-Run3-0.049.tar.gz
 JSON::PP 4.16 I/IS/ISHIGAKI/JSON-PP-4.16.tar.gz
 JSON::PP::Boolean 4.16 I/IS/ISHIGAKI/JSON-PP-4.16.tar.gz
 JSON::PP::IncrParser 4.16 I/IS/ISHIGAKI/JSON-PP-4.16.tar.gz
-Parallel::Pipes 0.200 S/SK/SKAJI/Parallel-Pipes-0.200.tar.gz
-Parallel::Pipes::App 0.200 S/SK/SKAJI/Parallel-Pipes-0.200.tar.gz
+Parallel::Pipes 0.201 S/SK/SKAJI/Parallel-Pipes-0.201.tar.gz
+Parallel::Pipes::App 0.201 S/SK/SKAJI/Parallel-Pipes-0.201.tar.gz
 YAML::PP v0.39.0 T/TI/TINITA/YAML-PP-v0.39.0.tar.gz
 YAML::PP::Common v0.39.0 T/TI/TINITA/YAML-PP-v0.39.0.tar.gz
 YAML::PP::Constructor v0.39.0 T/TI/TINITA/YAML-PP-v0.39.0.tar.gz

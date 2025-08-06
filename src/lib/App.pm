@@ -152,7 +152,7 @@ sub probe_github_release ($self, @release) {
         my $want_arch = $want_archs->[$i];
         for my $release (@release) {
             DEBUG and $i == 0 and warn $release;
-            my $exclude = qr/\.(?:rpm|deb|txt)$/;
+            my $exclude = qr/\.(?:rpm|deb|txt|sha256)$/;
             my $file = $release =~ s{.*/releases/download/}{}r;
             if ($file =~ $exclude) {
                 next;
