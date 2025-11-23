@@ -1,7 +1,7 @@
 package App;
 use v5.20;
 use warnings;
-use experimental qw(signatures postderef);
+use experimental qw(lexical_subs signatures postderef);
 
 use Digest::MD5 ();
 use File::Basename qw(basename dirname);
@@ -22,7 +22,7 @@ use YAML::PP;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
 
-sub catpath (@argv) { File::Spec->catfile(@argv) }
+my sub catpath (@argv) { File::Spec->catfile(@argv) }
 
 my $TAR = qr/\.(?:tgz|tar\.(?:gz|bz2|xz))$/;
 my $ZIP = qr/\.zip$/;
@@ -455,8 +455,8 @@ sub github_jar_install ($self, $spec) {
     die "$res->{status}, $release" if !$res->{success};
 
     open my $fh, ">", $target or die;
-    print {$fh} qq[#!/bin/bash\n];
-    print {$fh} qq[exec java -jar $jar_target "\$@"\n];
+    say {$fh} qq[#!/bin/bash];
+    say {$fh} qq[exec java -jar $jar_target "\$@"];
     close $fh;
     chmod 0755, $target or die;
 }
