@@ -1,7 +1,7 @@
 package App;
-use v5.20;
+use v5.24;
 use warnings;
-use experimental qw(lexical_subs signatures postderef);
+use experimental qw(lexical_subs signatures);
 
 use Digest::MD5 ();
 use File::Basename qw(basename dirname);
