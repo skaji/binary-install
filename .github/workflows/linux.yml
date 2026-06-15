@@ -12,13 +12,12 @@ jobs:
   perl:
     runs-on: ubuntu-latest
     container:
-      image: perl:5.20-buster
+      image: perl:5.24-buster
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: |
           set -eux
           ./binary-install sample-spec.yaml
           ls -al ~/bin/ghq
           ls -al ~/bin/spin
           ls -al ~/bin/peco
-
