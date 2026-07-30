@@ -142,9 +142,9 @@ sub probe_github_release ($self, @release) {
         $want_os = qr/(?:darwin|macos|osx)/i;
     }
     if ($self->{arch} eq "amd64") {
-        $want_archs = [qr/(?:amd64|x86_64)/i, qr/64/, qr/all/i, qr/universal/i];
+        $want_archs = [qr/(?:amd64|x86.64)/i, qr/64/, qr/all/i, qr/universal/i];
     } else {
-        $want_archs = [qr/(?:arm64|AArch64)/i, qr/(?:amd64|x86_64)/i, qr/64/, qr/all/i, qr/universal/i];
+        $want_archs = [qr/(?:arm64|AArch64)/i, qr/(?:amd64|x86.64)/i, qr/64/, qr/all/i, qr/universal/i];
     }
 
     my @candidate;
