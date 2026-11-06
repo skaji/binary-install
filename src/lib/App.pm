@@ -492,6 +492,21 @@ sub run ($self, $file) {
                 }
                 next if !$ok;
             }
+            if ($spec->{skip}) {
+                my $ok = 1;
+                for my $arg (split /\s*,\s*/, $spec->{skip}) {
+                    if (lc $arg eq lc $self->{hostname}) {
+                        $ok = 0;
+                        last;
+                    }
+                    my ($os, $arch) = split m{/}, $arg;
+                    if ($os eq $self->{os} and (!$arch or $arch eq $self->{arch})) {
+                        $ok = 0;
+                        last;
+                    }
+                }
+                next if !$ok;
+            }
             my $priority = $spec->{priority} || 0;
             push @task, { type => $type, spec => $spec, priority => $priority };
         }
