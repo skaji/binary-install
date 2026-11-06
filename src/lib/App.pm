@@ -18,6 +18,7 @@ use IPC::Run3 ();
 use JSON::PP ();
 use POSIX ();
 use Parallel::Pipes::App;
+use Sys::Hostname qw(hostname);
 use YAML::PP;
 
 use constant DEBUG => $ENV{DEBUG} ? 1 : 0;
@@ -36,6 +37,7 @@ my $LOG_DONE = "\e[1;35mDONE!\e[m";
 
 sub new ($class) {
     my $home = (<~>)[0];
+    my $hostname = hostname();
     my $base_dir = catpath $home, ".binary-install";
     my $cache_dir = catpath $base_dir, "cache";
     my $work_dir = catpath $base_dir, "work";
@@ -56,6 +58,7 @@ sub new ($class) {
         os => $os,
         arch => $arch,
         home => $home,
+        hostname => $hostname,
         work_dir => $work_dir,
         cache_dir => $cache_dir,
         jar_dir => $jar_dir,
@@ -476,10 +479,15 @@ sub run ($self, $file) {
             next if exists $spec->{enabled} && !$spec->{enabled};
             if ($spec->{only}) {
                 my $ok;
-                for my $os_arch (split /\s*,\s*/, $spec->{only}) {
-                    my ($os, $arch) = split m{/}, $os_arch;
+                for my $arg (split /\s*,\s*/, $spec->{only}) {
+                    if (lc $arg eq lc $self->{hostname}) {
+                        $ok++;
+                        last;
+                    }
+                    my ($os, $arch) = split m{/}, $arg;
                     if ($os eq $self->{os} and (!$arch or $arch eq $self->{arch})) {
-                        $ok++, last;
+                        $ok++;
+                        last;
                     }
                 }
                 next if !$ok;
